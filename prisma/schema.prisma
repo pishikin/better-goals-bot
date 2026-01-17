@@ -1,0 +1,67 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    String   @id @default(cuid())
+  telegramId            BigInt   @unique @map("telegram_id")
+  timezone              String   @default("UTC")
+  // Digest reminder times (JSON array as string, e.g., '["09:00","14:00"]')
+  // 1-3 times allowed, always sends
+  digestTimes           String?  @map("digest_times")
+  // Progress reminder time (single HH:mm), only sends if no progress today
+  progressReminderTime  String?  @map("progress_reminder_time")
+  pinnedMessageId       BigInt?  @map("pinned_message_id")
+  onboardingCompleted   Boolean  @default(false) @map("onboarding_completed")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  areas           Area[]
+  progressEntries ProgressEntry[]
+
+  @@map("users")
+}
+
+model Area {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String // max 50 chars (validate in code)
+  body      String? // max 200 chars (validate in code)
+  emoji     String?
+  position  Int // creation order, no reorder in MVP
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  progressEntries ProgressEntry[]
+
+  @@map("areas")
+}
+
+model ProgressEntry {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Nullable: null means this is a check-in entry (user skipped all areas)
+  areaId    String?  @map("area_id")
+  area      Area?    @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  // Nullable: null for check-in entries
+  content   String?
+  // True if user skipped this area (or all areas for check-in)
+  skipped   Boolean  @default(false)
+  date      DateTime @map("date")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // For regular entries: unique per user+area+date
+  // For check-in entries (areaId=null): only one per user+date (enforced in code)
+  @@unique([userId, areaId, date])
+  @@map("progress_entries")
+}
