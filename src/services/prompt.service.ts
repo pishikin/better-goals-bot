@@ -8,6 +8,7 @@ import { toZonedTime } from 'date-fns-tz';
 /**
  * Prompt service generates AI analysis prompts for users.
  * No AI API integration - users copy the prompt to ChatGPT/Claude manually.
+ * Prompt is always in English (for AI to understand), but includes language instruction.
  */
 
 interface ProgressWithArea extends ProgressEntry {
@@ -17,6 +18,7 @@ interface ProgressWithArea extends ProgressEntry {
 /**
  * Generate an AI analysis prompt based on user's progress.
  * Default is 7 days of data.
+ * Prompt content is in English, but includes instruction for AI to respond in user's language.
  */
 export async function generateAnalysisPrompt(
   user: User,
@@ -115,6 +117,11 @@ export async function generateAnalysisPrompt(
   lines.push('   - Are my current areas aligned with my long-term goals?');
   lines.push('');
   lines.push('='.repeat(50));
+  lines.push('');
+  
+  // Add language instruction for AI
+  const languageName = user.language === 'ru' ? 'Russian' : 'English';
+  lines.push(`**IMPORTANT: Please respond in ${languageName} language.**`);
 
   return lines.join('\n');
 }
@@ -139,33 +146,4 @@ function groupProgressByDate(
   }
 
   return grouped;
-}
-
-/**
- * Generate a shorter summary prompt (for quick insights).
- */
-export async function generateQuickSummary(user: User): Promise<string> {
-  const areas = await getUserAreas(user.id);
-  const progress = (await getRecentProgress(user.id, 3)) as ProgressWithArea[];
-  const stats = await getUserStatistics(user.id, user.timezone);
-
-  const lines: string[] = [
-    'Quick progress summary for the last 3 days:',
-    '',
-    `Areas: ${areas.map((a) => a.emoji ?? a.title).join(' ')}`,
-    `Streak: ${stats.currentStreak} days`,
-    '',
-  ];
-
-  if (progress.length > 0) {
-    lines.push('Recent activity:');
-    progress.slice(0, 5).forEach((entry) => {
-      const emoji = entry.area.emoji ?? '•';
-      lines.push(`- ${emoji} ${entry.content}`);
-    });
-  } else {
-    lines.push('No recent activity. Time to log some progress!');
-  }
-
-  return lines.join('\n');
 }

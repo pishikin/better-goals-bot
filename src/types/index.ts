@@ -1,5 +1,6 @@
 import type { Context, SessionFlavor } from 'grammy';
 import type { ConversationFlavor, Conversation } from '@grammyjs/conversations';
+import type { I18nFlavor } from '@grammyjs/i18n';
 import type { User, Area, ProgressEntry } from '@prisma/client';
 
 // Session data stored between updates
@@ -8,10 +9,11 @@ export interface SessionData {
   userId?: string;
 }
 
-// Bot context type with session and conversation support
+// Bot context type with session, conversation and i18n support
 export type BotContext = Context &
   SessionFlavor<SessionData> &
-  ConversationFlavor<Context & SessionFlavor<SessionData>>;
+  ConversationFlavor<Context & SessionFlavor<SessionData>> &
+  I18nFlavor;
 
 // Conversation type for Grammy conversations plugin
 // Note: Conversation<OC, C> where OC = outer context (same as C for most cases)
@@ -61,3 +63,6 @@ export const TIMEZONE_OPTIONS: TimezoneOption[] = [
   { label: 'Tokyo (JST)', value: 'Asia/Tokyo' },
   { label: 'UTC', value: 'UTC' },
 ];
+
+// Language type
+export type Language = 'en' | 'ru';

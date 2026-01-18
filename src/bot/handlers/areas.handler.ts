@@ -2,12 +2,7 @@ import type { BotContext } from '../../types/index.js';
 import * as userService from '../../services/user.service.js';
 import * as areasService from '../../services/areas.service.js';
 import { getUserStatistics, getLastProgressDate } from '../../services/statistics.service.js';
-import {
-  formatAreasList,
-  formatPinnedMessage,
-  formatDeleteWarning,
-  formatSuccessMessage,
-} from '../utils/message-formatter.js';
+import { formatPinnedMessage } from '../utils/message-formatter.js';
 import {
   createAreasListKeyboard,
   createAreaActionsKeyboard,
@@ -17,22 +12,46 @@ import {
 import { createMainMenuKeyboard } from '../keyboards/main-menu.keyboard.js';
 
 /**
+ * Format areas list using i18n.
+ */
+function formatAreasListLocalized(
+  areas: { emoji: string | null; title: string; body: string | null }[],
+  t: (key: string, params?: Record<string, unknown>) => string
+): string {
+  if (areas.length === 0) {
+    return t('areas.areas-empty');
+  }
+
+  return areas
+    .map((area, index) =>
+      t('areas.areas-list-item', {
+        position: index + 1,
+        emoji: area.emoji ?? '•',
+        title: area.title,
+        body: area.body ?? 'none',
+      })
+    )
+    .join('\n\n');
+}
+
+/**
  * Handle /areas command - show areas overview.
  */
 export async function handleAreasCommand(ctx: BotContext): Promise<void> {
   const telegramId = BigInt(ctx.from?.id ?? 0);
   const user = await userService.getUserByTelegramId(telegramId);
+  const t = (key: string, params?: Record<string, any>) => ctx.t(key, params);
 
   if (!user) {
-    await ctx.reply('Please start the bot first with /start');
+    await ctx.reply(t('areas.error-please-start'));
     return;
   }
 
   const areas = await areasService.getUserAreas(user.id);
+  const areasText = formatAreasListLocalized(areas, t);
 
-  await ctx.reply(`📌 *Your Focus Areas*\n\n${formatAreasList(areas)}`, {
-    parse_mode: 'Markdown',
-    reply_markup: createAreasOverviewKeyboard(areas.length),
+  await ctx.reply(`${t('areas.areas-title')}\n\n${areasText}`, {
+    reply_markup: createAreasOverviewKeyboard(areas.length, t),
   });
 }
 
@@ -42,23 +61,24 @@ export async function handleAreasCommand(ctx: BotContext): Promise<void> {
 export async function handleEditAreas(ctx: BotContext): Promise<void> {
   const telegramId = BigInt(ctx.from?.id ?? 0);
   const user = await userService.getUserByTelegramId(telegramId);
+  const t = (key: string, params?: Record<string, any>) => ctx.t(key, params);
 
   if (!user) {
-    await ctx.answerCallbackQuery('Please start the bot first');
+    await ctx.answerCallbackQuery(t('areas.error-please-start'));
     return;
   }
 
   const areas = await areasService.getUserAreas(user.id);
 
   if (areas.length === 0) {
-    await ctx.editMessageText('No areas to edit. Add some first!', {
-      reply_markup: createAreasOverviewKeyboard(0),
+    await ctx.editMessageText(t('areas.areas-no-areas-to-edit'), {
+      reply_markup: createAreasOverviewKeyboard(0, t),
     });
     return;
   }
 
-  await ctx.editMessageText('Select an area to edit:', {
-    reply_markup: createAreasListKeyboard(areas, 'area:select'),
+  await ctx.editMessageText(t('areas.areas-select-to-edit'), {
+    reply_markup: createAreasListKeyboard(areas, 'area:select', t),
   });
 }
 
@@ -66,19 +86,20 @@ export async function handleEditAreas(ctx: BotContext): Promise<void> {
  * Handle area selection - show actions for selected area.
  */
 export async function handleAreaSelect(ctx: BotContext, areaId: string): Promise<void> {
+  const t = (key: string, params?: Record<string, any>) => ctx.t(key, params);
   const area = await areasService.getAreaById(areaId);
 
   if (!area) {
-    await ctx.answerCallbackQuery('Area not found');
+    await ctx.answerCallbackQuery(t('areas.error-area-not-found'));
     return;
   }
 
   const emoji = area.emoji ?? '📌';
   const body = area.body ? `\n→ ${area.body}` : '';
 
-  await ctx.editMessageText(`${emoji} *${area.title}*${body}\n\nWhat would you like to do?`, {
+  await ctx.editMessageText(`${emoji} *${area.title}*${body}\n\n${t('areas.areas-what-to-do')}`, {
     parse_mode: 'Markdown',
-    reply_markup: createAreaActionsKeyboard(areaId),
+    reply_markup: createAreaActionsKeyboard(areaId, t),
   });
 }
 
@@ -86,15 +107,16 @@ export async function handleAreaSelect(ctx: BotContext, areaId: string): Promise
  * Handle delete area action - show confirmation.
  */
 export async function handleDeleteArea(ctx: BotContext, areaId: string): Promise<void> {
+  const t = (key: string, params?: Record<string, any>) => ctx.t(key, params);
   const area = await areasService.getAreaById(areaId);
 
   if (!area) {
-    await ctx.answerCallbackQuery('Area not found');
+    await ctx.answerCallbackQuery(t('areas.error-area-not-found'));
     return;
   }
 
-  await ctx.editMessageText(formatDeleteWarning(area), {
-    reply_markup: createDeleteConfirmKeyboard(areaId),
+  await ctx.editMessageText(t('areas.delete-area-confirm', { title: area.title }), {
+    reply_markup: createDeleteConfirmKeyboard(areaId, t),
   });
 }
 
@@ -104,44 +126,46 @@ export async function handleDeleteArea(ctx: BotContext, areaId: string): Promise
 export async function handleConfirmDelete(ctx: BotContext, areaId: string): Promise<void> {
   const telegramId = BigInt(ctx.from?.id ?? 0);
   const user = await userService.getUserByTelegramId(telegramId);
+  const t = (key: string, params?: Record<string, any>) => ctx.t(key, params);
 
   if (!user) {
-    await ctx.answerCallbackQuery('Please start the bot first');
+    await ctx.answerCallbackQuery(t('areas.error-please-start'));
     return;
   }
 
   const area = await areasService.getAreaById(areaId);
 
   if (!area) {
-    await ctx.answerCallbackQuery('Area not found');
+    await ctx.answerCallbackQuery(t('areas.error-area-not-found'));
     return;
   }
 
   // Verify ownership
   if (area.userId !== user.id) {
-    await ctx.answerCallbackQuery('Access denied');
+    await ctx.answerCallbackQuery(t('areas.error-access-denied'));
     return;
   }
 
   await areasService.deleteArea(areaId);
-  await ctx.answerCallbackQuery('Area deleted');
+  await ctx.answerCallbackQuery(t('areas.areas-deleted-success'));
 
   // Update the message with remaining areas
   const areas = await areasService.getUserAreas(user.id);
 
   if (areas.length === 0) {
-    await ctx.editMessageText(formatSuccessMessage('Area deleted.\n\nNo areas remaining.'), {
-      reply_markup: createAreasOverviewKeyboard(0),
+    await ctx.editMessageText(`✅ ${t('areas.areas-deleted-no-remaining')}`, {
+      reply_markup: createAreasOverviewKeyboard(0, t),
     });
   } else {
+    const areasText = formatAreasListLocalized(areas, t);
     await ctx.editMessageText(
-      formatSuccessMessage('Area deleted.') + '\n\nRemaining areas:\n\n' + formatAreasList(areas),
-      { reply_markup: createAreasOverviewKeyboard(areas.length) }
+      `✅ ${t('areas.areas-deleted-success')}\n\n${t('areas.areas-remaining')}\n\n${areasText}`,
+      { reply_markup: createAreasOverviewKeyboard(areas.length, t) }
     );
   }
 
   // Update pinned message
-  await updatePinnedMessage(ctx, user.id, user.timezone, user.pinnedMessageId);
+  await updatePinnedMessage(ctx, user.id, user.timezone, user.pinnedMessageId, user.language);
 }
 
 /**
@@ -149,6 +173,7 @@ export async function handleConfirmDelete(ctx: BotContext, areaId: string): Prom
  */
 export async function handleAreaCallbacks(ctx: BotContext): Promise<void> {
   const data = ctx.callbackQuery?.data;
+  const t = (key: string, params?: Record<string, any>) => ctx.t(key, params);
 
   if (!data?.startsWith('area:')) return;
 
@@ -173,7 +198,7 @@ export async function handleAreaCallbacks(ctx: BotContext): Promise<void> {
 
     case 'edit':
       // TODO: Implement edit conversation
-      await ctx.reply('Edit functionality coming soon...');
+      await ctx.reply(t('areas.areas-edit-coming-soon'));
       break;
 
     default:
@@ -188,19 +213,21 @@ async function updatePinnedMessage(
   ctx: BotContext,
   userId: string,
   timezone: string,
-  pinnedMessageId: bigint | null
+  pinnedMessageId: bigint | null,
+  language: string = 'en'
 ): Promise<void> {
   if (!pinnedMessageId) return;
 
   const areas = await areasService.getUserAreas(userId);
   const stats = await getUserStatistics(userId, timezone);
   const lastProgress = await getLastProgressDate(userId);
+  const t = (key: string, params?: Record<string, any>) => ctx.t(key, params);
 
-  const messageText = formatPinnedMessage(areas, stats, lastProgress, timezone);
+  const messageText = formatPinnedMessage(areas, stats, lastProgress, timezone, language);
 
   try {
     await ctx.api.editMessageText(ctx.chat?.id ?? 0, Number(pinnedMessageId), messageText, {
-      reply_markup: createMainMenuKeyboard(),
+      reply_markup: createMainMenuKeyboard(t),
     });
   } catch {
     // Edit might fail, that's okay

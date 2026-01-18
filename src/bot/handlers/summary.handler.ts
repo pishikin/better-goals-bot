@@ -1,8 +1,9 @@
 import type { BotContext } from '../../types/index.js';
 import * as userService from '../../services/user.service.js';
-import { generateAnalysisPrompt, generateQuickSummary } from '../../services/prompt.service.js';
-import { formatPromptGenerated } from '../utils/message-formatter.js';
+import { generateAnalysisPrompt } from '../../services/prompt.service.js';
 import { InlineKeyboard } from 'grammy';
+
+type TranslateFn = (key: string, params?: Record<string, any>) => string;
 
 /**
  * Handle /summary command - generate AI analysis prompt.
@@ -10,49 +11,52 @@ import { InlineKeyboard } from 'grammy';
 export async function handleSummaryCommand(ctx: BotContext): Promise<void> {
   const telegramId = BigInt(ctx.from?.id ?? 0);
   const user = await userService.getUserByTelegramId(telegramId);
+  const t: TranslateFn = (key, params) => ctx.t(key, params);
 
   if (!user) {
-    await ctx.reply('Please start the bot first with /start');
+    await ctx.reply(t('settings.error-please-start'));
     return;
   }
 
   // Show options for time range
-  await ctx.reply('📊 *Generate AI Analysis Prompt*\n\nSelect the time range:', {
+  await ctx.reply(`${t('summary.summary-title')}\n\n${t('summary.summary-period')}`, {
     parse_mode: 'Markdown',
     reply_markup: new InlineKeyboard()
-      .text('Last 3 days', 'summary:3')
-      .text('Last 7 days', 'summary:7')
+      .text(t('summary.summary-7days'), 'summary:7')
+      .text(t('summary.summary-14days'), 'summary:14')
       .row()
-      .text('Last 14 days', 'summary:14')
-      .text('Last 30 days', 'summary:30')
+      .text(t('summary.summary-30days'), 'summary:30')
+      .text(t('summary.summary-all'), 'summary:all')
       .row()
-      .text('← Back', 'action:back'),
+      .text(t('common.btn-back'), 'action:back'),
   });
 }
 
 /**
  * Handle summary generation with specific day range.
  */
-export async function handleSummaryGeneration(ctx: BotContext, days: number): Promise<void> {
+export async function handleSummaryGeneration(ctx: BotContext, days: number | 'all'): Promise<void> {
   const telegramId = BigInt(ctx.from?.id ?? 0);
   const user = await userService.getUserByTelegramId(telegramId);
+  const t: TranslateFn = (key, params) => ctx.t(key, params);
 
   if (!user) {
-    await ctx.answerCallbackQuery('Please start the bot first');
+    await ctx.answerCallbackQuery(t('settings.error-please-start'));
     return;
   }
 
-  await ctx.answerCallbackQuery('Generating prompt...');
+  await ctx.answerCallbackQuery(t('summary.summary-generating'));
 
-  // Generate the prompt
-  const prompt = await generateAnalysisPrompt(user, days);
+  // Generate the prompt (pass 0 for "all time")
+  const daysNum = days === 'all' ? 0 : days;
+  const prompt = await generateAnalysisPrompt(user, daysNum);
 
   // Send info message
-  await ctx.editMessageText(formatPromptGenerated(days), {
+  await ctx.editMessageText(t('summary.summary-ready'), {
     parse_mode: 'Markdown',
     reply_markup: new InlineKeyboard()
-      .text('🔄 Different range', 'action:summary')
-      .text('← Back', 'action:back'),
+      .text('🔄', 'action:summary')
+      .text(t('common.btn-back'), 'action:back'),
   });
 
   // Send the actual prompt in a code block for easy copying
@@ -84,27 +88,9 @@ export async function handleSummaryGeneration(ctx: BotContext, days: number): Pr
       await ctx.reply(`${header}\`\`\`\n${chunks[i]}\n\`\`\``, { parse_mode: 'Markdown' });
     }
   }
-}
 
-/**
- * Handle quick summary (shorter version).
- */
-export async function handleQuickSummary(ctx: BotContext): Promise<void> {
-  const telegramId = BigInt(ctx.from?.id ?? 0);
-  const user = await userService.getUserByTelegramId(telegramId);
-
-  if (!user) {
-    await ctx.reply('Please start the bot first with /start');
-    return;
-  }
-
-  const summary = await generateQuickSummary(user);
-
-  await ctx.reply(summary, {
-    reply_markup: new InlineKeyboard()
-      .text('📊 Full AI Prompt', 'action:summary')
-      .text('← Back', 'action:back'),
-  });
+  // Send copy instruction
+  await ctx.reply(t('summary.summary-copy-instruction'));
 }
 
 /**
@@ -112,13 +98,21 @@ export async function handleQuickSummary(ctx: BotContext): Promise<void> {
  */
 export async function handleSummaryCallbacks(ctx: BotContext): Promise<void> {
   const data = ctx.callbackQuery?.data;
+  const t: TranslateFn = (key, params) => ctx.t(key, params);
 
   if (!data?.startsWith('summary:')) return;
 
-  const days = parseInt(data.replace('summary:', ''), 10);
+  const daysStr = data.replace('summary:', '');
+
+  if (daysStr === 'all') {
+    await handleSummaryGeneration(ctx, 'all');
+    return;
+  }
+
+  const days = parseInt(daysStr, 10);
 
   if (isNaN(days)) {
-    await ctx.answerCallbackQuery('Invalid selection');
+    await ctx.answerCallbackQuery(t('common.error-something-wrong'));
     return;
   }
 

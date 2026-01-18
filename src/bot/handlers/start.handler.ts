@@ -7,14 +7,21 @@ import { createMainMenuKeyboard } from '../keyboards/main-menu.keyboard.js';
 
 /**
  * Handle /start command.
- * Routes to onboarding for new users or shows main menu for existing users.
+ * Routes to language selection for new users, onboarding for incomplete setup,
+ * or shows main menu for existing users.
  */
 export async function handleStart(ctx: BotContext): Promise<void> {
   const telegramId = BigInt(ctx.from?.id ?? 0);
   const user = await userService.getUserByTelegramId(telegramId);
 
-  if (!user || !user.onboardingCompleted) {
-    // New user or incomplete onboarding - start conversation
+  if (!user) {
+    // New user - start with language selection
+    await ctx.conversation.enter('languageSelection');
+    return;
+  }
+
+  if (!user.onboardingCompleted) {
+    // Incomplete onboarding - continue onboarding
     await ctx.conversation.enter('onboarding');
     return;
   }
@@ -24,8 +31,15 @@ export async function handleStart(ctx: BotContext): Promise<void> {
   const stats = await getUserStatistics(user.id, user.timezone);
   const lastProgress = await getLastProgressDate(user.id);
 
-  const messageText = formatPinnedMessage(areas, stats, lastProgress, user.timezone);
+  const messageText = formatPinnedMessage(
+    areas,
+    stats,
+    lastProgress,
+    user.timezone,
+    user.language
+  );
 
+  // For now, use default English keyboard until we refactor all handlers
   await ctx.reply(messageText, {
     reply_markup: createMainMenuKeyboard(),
   });

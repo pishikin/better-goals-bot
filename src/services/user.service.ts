@@ -72,12 +72,30 @@ export async function getUserByTelegramId(
 }
 
 /**
+ * Alias for getUserByTelegramId (for consistency with other services)
+ */
+export const findByTelegramId = getUserByTelegramId;
+
+/**
  * Mark user's onboarding as completed.
  */
 export async function completeOnboarding(userId: string): Promise<User> {
   return prisma.user.update({
     where: { id: userId },
     data: { onboardingCompleted: true },
+  });
+}
+
+/**
+ * Update user's language.
+ */
+export async function updateLanguage(
+  userId: string,
+  language: string
+): Promise<User> {
+  return prisma.user.update({
+    where: { id: userId },
+    data: { language },
   });
 }
 
@@ -221,7 +239,7 @@ export async function fullReset(userId: string): Promise<User> {
     where: { userId },
   });
 
-  // Reset user settings
+  // Reset user settings (keep language)
   return prisma.user.update({
     where: { id: userId },
     data: {
@@ -260,3 +278,24 @@ export async function getUsersForProgressReminder(): Promise<User[]> {
     },
   });
 }
+
+// Default export for convenience
+export const userService = {
+  getOrCreateUser,
+  getUserById,
+  getUserByTelegramId,
+  findByTelegramId,
+  completeOnboarding,
+  updateLanguage,
+  updateTimezone,
+  getUserDigestTimes,
+  addDigestTime,
+  removeDigestTime,
+  setDigestTimes,
+  clearDigestTimes,
+  updateProgressReminderTime,
+  updatePinnedMessageId,
+  fullReset,
+  getUsersForDigest,
+  getUsersForProgressReminder,
+};

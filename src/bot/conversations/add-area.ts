@@ -6,16 +6,12 @@ import {
   validateAreaTitle,
   validateAreaBody,
   validateEmoji,
-  VALIDATION_LIMITS,
 } from '../utils/validators.js';
-import {
-  formatAreaCreated,
-  formatPinnedMessage,
-  formatValidationError,
-  formatErrorMessage,
-} from '../utils/message-formatter.js';
+import { formatPinnedMessage } from '../utils/message-formatter.js';
 import { createMainMenuKeyboard } from '../keyboards/main-menu.keyboard.js';
 import { InlineKeyboard } from 'grammy';
+
+type TranslateFn = (key: string, params?: Record<string, any>) => string;
 
 /**
  * Add area conversation flow.
@@ -30,40 +26,38 @@ export async function addAreaConversation(
   ctx: BotContext
 ): Promise<void> {
   const telegramId = BigInt(ctx.from?.id ?? 0);
+  const t: TranslateFn = (key, params) => ctx.t(key, params);
 
   // Get user
   const user = await conversation.external(() => userService.getUserByTelegramId(telegramId));
 
   if (!user) {
-    await ctx.reply('Please start the bot first with /start');
+    await ctx.reply(t('settings.error-please-start'));
     return;
   }
+
+  const language = user.language || 'en';
 
   // Check if user can add more areas
   const canAdd = await conversation.external(() => areasService.canAddArea(user.id));
 
   if (!canAdd) {
     await ctx.reply(
-      formatErrorMessage(
-        `You've reached the maximum of ${VALIDATION_LIMITS.MAX_AREAS_PER_USER} areas. Delete an existing area to add a new one.`
-      ),
+      `❌ ${t('common.error-max-areas')}`,
       {
         reply_markup: new InlineKeyboard()
-          .text('✏️ Edit Areas', 'action:edit_areas')
-          .text('← Back', 'action:back'),
+          .text(t('common.btn-edit-areas'), 'action:edit_areas')
+          .text(t('common.btn-back'), 'action:back'),
       }
     );
     return;
   }
 
   // Step 1: Ask for title
-  await ctx.reply(
-    '📌 *New Focus Area*\n\nWhat life area do you want to add?\n\n_Examples: Career, Fitness, Relationships, Hobbies_',
-    {
-      parse_mode: 'Markdown',
-      reply_markup: new InlineKeyboard().text('❌ Cancel', 'action:cancel'),
-    }
-  );
+  await ctx.reply(t('areas.add-area-start') + '\n\n' + t('areas.add-area-title-prompt'), {
+    parse_mode: 'Markdown',
+    reply_markup: new InlineKeyboard().text(t('common.btn-cancel'), 'action:cancel'),
+  });
 
   // Wait for title
   let title: string | null = null;
@@ -72,8 +66,8 @@ export async function addAreaConversation(
     const response = await conversation.waitFor([':text', 'callback_query:data']);
 
     if (response.callbackQuery?.data === 'action:cancel') {
-      await response.answerCallbackQuery('Cancelled');
-      await ctx.reply('❌ Area creation cancelled.');
+      await response.answerCallbackQuery(t('common.msg-cancelled'));
+      await ctx.reply(`❌ ${t('common.msg-cancelled')}`);
       return;
     }
 
@@ -82,22 +76,19 @@ export async function addAreaConversation(
       if (validation.success) {
         title = validation.data;
       } else {
-        await ctx.reply(formatValidationError('Title', validation.error));
+        await ctx.reply(`⚠️ ${t('common.error-area-title-too-long')}`);
       }
     }
   }
 
   // Step 2: Ask for description (optional)
-  await ctx.reply(
-    `📝 *Description* (optional)\n\nAdd a short description for "${title}":`,
-    {
-      parse_mode: 'Markdown',
-      reply_markup: new InlineKeyboard()
-        .text('⏭ Skip', 'input:skip_body')
-        .row()
-        .text('❌ Cancel', 'action:cancel'),
-    }
-  );
+  await ctx.reply(t('areas.add-area-body-prompt'), {
+    parse_mode: 'Markdown',
+    reply_markup: new InlineKeyboard()
+      .text(t('common.btn-skip'), 'input:skip_body')
+      .row()
+      .text(t('common.btn-cancel'), 'action:cancel'),
+  });
 
   let body: string | undefined;
   let bodyDone = false;
@@ -106,8 +97,8 @@ export async function addAreaConversation(
     const response = await conversation.waitFor([':text', 'callback_query:data']);
 
     if (response.callbackQuery?.data === 'action:cancel') {
-      await response.answerCallbackQuery('Cancelled');
-      await ctx.reply('❌ Area creation cancelled.');
+      await response.answerCallbackQuery(t('common.msg-cancelled'));
+      await ctx.reply(`❌ ${t('common.msg-cancelled')}`);
       return;
     }
 
@@ -120,22 +111,19 @@ export async function addAreaConversation(
         body = validation.data;
         bodyDone = true;
       } else {
-        await ctx.reply(formatValidationError('Description', validation.error));
+        await ctx.reply(`⚠️ ${t('common.error-area-body-too-long')}`);
       }
     }
   }
 
   // Step 3: Ask for emoji (optional)
-  await ctx.reply(
-    '😀 *Emoji* (optional)\n\nSend an emoji to represent this area:',
-    {
-      parse_mode: 'Markdown',
-      reply_markup: new InlineKeyboard()
-        .text('⏭ Skip', 'input:skip_emoji')
-        .row()
-        .text('❌ Cancel', 'action:cancel'),
-    }
-  );
+  await ctx.reply(t('areas.add-area-emoji-prompt'), {
+    parse_mode: 'Markdown',
+    reply_markup: new InlineKeyboard()
+      .text(t('common.btn-skip'), 'input:skip_emoji')
+      .row()
+      .text(t('common.btn-cancel'), 'action:cancel'),
+  });
 
   let emoji: string | undefined;
   let emojiDone = false;
@@ -144,8 +132,8 @@ export async function addAreaConversation(
     const response = await conversation.waitFor([':text', 'callback_query:data']);
 
     if (response.callbackQuery?.data === 'action:cancel') {
-      await response.answerCallbackQuery('Cancelled');
-      await ctx.reply('❌ Area creation cancelled.');
+      await response.answerCallbackQuery(t('common.msg-cancelled'));
+      await ctx.reply(`❌ ${t('common.msg-cancelled')}`);
       return;
     }
 
@@ -158,7 +146,7 @@ export async function addAreaConversation(
         emoji = validation.data;
         emojiDone = true;
       } else {
-        await ctx.reply('Please send a single emoji, or press Skip.');
+        await ctx.reply(`⚠️ ${t('common.btn-skip')}`);
       }
     }
   }
@@ -168,10 +156,15 @@ export async function addAreaConversation(
     areasService.createArea(user.id, { title, body, emoji })
   );
 
-  await ctx.reply(formatAreaCreated(area), { parse_mode: 'Markdown' });
+  // Show confirmation
+  const areaEmoji = area.emoji ?? '✓';
+  await ctx.reply(
+    t('areas.add-area-success', { emoji: areaEmoji, title: area.title, body: area.body ?? 'none' }),
+    { parse_mode: 'Markdown' }
+  );
 
   // Step 5: Update pinned message
-  await updatePinnedMessage(conversation, ctx, user.id, user.timezone, user.pinnedMessageId);
+  await updatePinnedMessage(conversation, ctx, user.id, user.timezone, user.pinnedMessageId, language, t);
 }
 
 /**
@@ -182,13 +175,15 @@ async function updatePinnedMessage(
   ctx: BotContext,
   userId: string,
   timezone: string,
-  pinnedMessageId: bigint | null
+  pinnedMessageId: bigint | null,
+  language: string,
+  t: TranslateFn
 ): Promise<void> {
   const areas = await conversation.external(() => areasService.getUserAreas(userId));
   const stats = await conversation.external(() => getUserStatistics(userId, timezone));
   const lastProgress = await conversation.external(() => getLastProgressDate(userId));
 
-  const messageText = formatPinnedMessage(areas, stats, lastProgress, timezone);
+  const messageText = formatPinnedMessage(areas, stats, lastProgress, timezone, language);
 
   if (pinnedMessageId) {
     // Try to edit existing pinned message
@@ -197,12 +192,12 @@ async function updatePinnedMessage(
         ctx.chat?.id ?? 0,
         Number(pinnedMessageId),
         messageText,
-        { reply_markup: createMainMenuKeyboard() }
+        { reply_markup: createMainMenuKeyboard(t) }
       );
     } catch {
       // If edit fails, send a new message
       const newMessage = await ctx.reply(messageText, {
-        reply_markup: createMainMenuKeyboard(),
+        reply_markup: createMainMenuKeyboard(t),
       });
 
       try {
@@ -217,7 +212,7 @@ async function updatePinnedMessage(
   } else {
     // No pinned message yet, create one
     const newMessage = await ctx.reply(messageText, {
-      reply_markup: createMainMenuKeyboard(),
+      reply_markup: createMainMenuKeyboard(t),
     });
 
     try {

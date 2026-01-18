@@ -5,35 +5,41 @@ import { TIMEZONE_OPTIONS } from '../../types/index.js';
  * Settings-related keyboard factory functions.
  */
 
+type TranslateFn = (key: string) => string;
+
 /**
  * Create the main settings menu keyboard.
  */
-export function createSettingsMenuKeyboard(): InlineKeyboard {
+export function createSettingsMenuKeyboard(t?: TranslateFn): InlineKeyboard {
+  const translate = t || ((key: string) => key);
   return new InlineKeyboard()
-    .text('🌍 Timezone', 'settings:timezone')
+    .text(translate('settings.btn-language'), 'settings:language')
     .row()
-    .text('📋 Digest Reminders', 'settings:digest')
+    .text(translate('settings.btn-timezone'), 'settings:timezone')
     .row()
-    .text('📝 Progress Reminder', 'settings:progress_reminder')
+    .text(translate('settings.btn-digest-reminders'), 'settings:digest')
     .row()
-    .text('🗑 Reset All Data', 'settings:reset')
+    .text(translate('settings.btn-progress-reminder'), 'settings:progress_reminder')
     .row()
-    .text('← Back', 'action:back');
+    .text(translate('settings.btn-reset-all'), 'settings:reset')
+    .row()
+    .text(translate('settings.btn-back'), 'action:back');
 }
 
 /**
  * Create a timezone selection keyboard.
  * Shows predefined options plus an "Other" option for custom input.
  */
-export function createTimezoneKeyboard(): InlineKeyboard {
+export function createTimezoneKeyboard(t?: TranslateFn): InlineKeyboard {
+  const translate = t || ((key: string) => key);
   const keyboard = new InlineKeyboard();
 
   TIMEZONE_OPTIONS.forEach((tz) => {
     keyboard.text(tz.label, `timezone:${tz.value}`).row();
   });
 
-  keyboard.text('📝 Other (type manually)', 'timezone:custom').row();
-  keyboard.text('← Back', 'action:settings');
+  keyboard.text(translate('settings.btn-other-custom'), 'timezone:custom').row();
+  keyboard.text(translate('settings.btn-back'), 'action:settings');
 
   return keyboard;
 }
@@ -43,8 +49,10 @@ export function createTimezoneKeyboard(): InlineKeyboard {
  * Shows common times in a grid layout.
  */
 export function createTimeSelectionKeyboard(
-  settingType: 'morning' | 'evening' | 'digest'
+  settingType: 'morning' | 'evening' | 'digest',
+  t?: TranslateFn
 ): InlineKeyboard {
+  const translate = t || ((key: string) => key);
   const keyboard = new InlineKeyboard();
   const prefix = `time:${settingType}`;
 
@@ -57,7 +65,7 @@ export function createTimeSelectionKeyboard(
       .row()
       .text('14:00', `${prefix}:14:00`)
       .text('17:00', `${prefix}:17:00`)
-      .text('📝 Custom', `${prefix}:custom`)
+      .text(translate('settings.btn-custom'), `${prefix}:custom`)
       .row();
   } else {
     // Evening options: 18:00 - 22:00
@@ -68,15 +76,15 @@ export function createTimeSelectionKeyboard(
       .row()
       .text('21:00', `${prefix}:21:00`)
       .text('22:00', `${prefix}:22:00`)
-      .text('📝 Custom', `${prefix}:custom`)
+      .text(translate('settings.btn-custom'), `${prefix}:custom`)
       .row();
   }
 
   if (settingType === 'evening') {
-    keyboard.text('🚫 Disable', `${prefix}:disable`).row();
+    keyboard.text(translate('settings.btn-disable'), `${prefix}:disable`).row();
   }
 
-  keyboard.text('← Back', settingType === 'digest' ? 'settings:digest' : 'action:settings');
+  keyboard.text(translate('settings.btn-back'), settingType === 'digest' ? 'settings:digest' : 'action:settings');
 
   return keyboard;
 }
@@ -85,7 +93,8 @@ export function createTimeSelectionKeyboard(
  * Create a keyboard for managing digest times.
  * Shows current times with remove buttons, and add option if under limit.
  */
-export function createDigestTimesKeyboard(currentTimes: string[]): InlineKeyboard {
+export function createDigestTimesKeyboard(currentTimes: string[], t?: TranslateFn): InlineKeyboard {
+  const translate = t || ((key: string) => key);
   const keyboard = new InlineKeyboard();
   const MAX_TIMES = 3;
 
@@ -96,15 +105,15 @@ export function createDigestTimesKeyboard(currentTimes: string[]): InlineKeyboar
 
   // Add button if under limit
   if (currentTimes.length < MAX_TIMES) {
-    keyboard.text('➕ Add Time', 'digest:add').row();
+    keyboard.text(translate('settings.btn-add-time'), 'digest:add').row();
   }
 
   // Clear all if there are times
   if (currentTimes.length > 0) {
-    keyboard.text('🗑 Clear All', 'digest:clear').row();
+    keyboard.text(translate('settings.btn-clear-all'), 'digest:clear').row();
   }
 
-  keyboard.text('← Back', 'action:settings');
+  keyboard.text(translate('settings.btn-back'), 'action:settings');
 
   return keyboard;
 }
@@ -112,22 +121,43 @@ export function createDigestTimesKeyboard(currentTimes: string[]): InlineKeyboar
 /**
  * Create a reset confirmation keyboard.
  */
-export function createResetConfirmKeyboard(): InlineKeyboard {
+export function createResetConfirmKeyboard(t?: TranslateFn): InlineKeyboard {
+  const translate = t || ((key: string) => key);
   return new InlineKeyboard()
-    .text('⚠️ Yes, I understand', 'reset:confirm')
+    .text(translate('settings.reset-confirm-step1'), 'reset:confirm')
     .row()
-    .text('🚨 DELETE EVERYTHING', 'reset:execute')
+    .text(translate('settings.reset-confirm-step2'), 'reset:execute')
     .row()
-    .text('← Cancel', 'action:settings');
+    .text(translate('settings.btn-cancel'), 'action:settings');
+}
+
+/**
+ * Create a language selection keyboard.
+ * Language names are intentionally not translated - shown in their native form.
+ */
+export function createLanguageKeyboard(currentLanguage: string, t?: TranslateFn): InlineKeyboard {
+  const translate = t || ((key: string) => key);
+  const keyboard = new InlineKeyboard();
+
+  const enLabel = currentLanguage === 'en' ? '🇬🇧 English ✓' : '🇬🇧 English';
+  const ruLabel = currentLanguage === 'ru' ? '🇷🇺 Русский ✓' : '🇷🇺 Русский';
+
+  keyboard.text(enLabel, 'language:en').row().text(ruLabel, 'language:ru').row();
+
+  keyboard.text(translate('settings.btn-back'), 'action:settings');
+
+  return keyboard;
 }
 
 /**
  * Create a confirmation keyboard for settings changes.
  */
 export function createSettingsConfirmKeyboard(
-  confirmCallback: string
+  confirmCallback: string,
+  t?: TranslateFn
 ): InlineKeyboard {
+  const translate = t || ((key: string) => key);
   return new InlineKeyboard()
-    .text('✅ Confirm', confirmCallback)
-    .text('← Back', 'action:settings');
+    .text(translate('settings.btn-confirm'), confirmCallback)
+    .text(translate('settings.btn-back'), 'action:settings');
 }

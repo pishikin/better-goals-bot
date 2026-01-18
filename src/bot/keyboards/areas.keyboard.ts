@@ -6,14 +6,18 @@ import { VALIDATION_LIMITS } from '../utils/validators.js';
  * Area-related keyboard factory functions.
  */
 
+type TranslateFn = (key: string, params?: Record<string, any>) => string;
+
 /**
  * Create a keyboard showing all areas for selection.
  * Used for editing or viewing individual areas.
  */
 export function createAreasListKeyboard(
   areas: Area[],
-  actionPrefix: string = 'area:select'
+  actionPrefix: string = 'area:select',
+  t?: TranslateFn
 ): InlineKeyboard {
+  const translate = t || ((key: string) => key);
   const keyboard = new InlineKeyboard();
 
   areas.forEach((area, index) => {
@@ -22,7 +26,7 @@ export function createAreasListKeyboard(
     keyboard.text(label, `${actionPrefix}:${area.id}`).row();
   });
 
-  keyboard.text('← Back', 'action:back');
+  keyboard.text(translate('common.btn-back'), 'action:back');
 
   return keyboard;
 }
@@ -31,52 +35,56 @@ export function createAreasListKeyboard(
  * Create an area management keyboard.
  * Shows options to edit or delete a selected area.
  */
-export function createAreaActionsKeyboard(areaId: string): InlineKeyboard {
+export function createAreaActionsKeyboard(areaId: string, t?: TranslateFn): InlineKeyboard {
+  const translate = t || ((key: string) => key);
   return new InlineKeyboard()
-    .text('✏️ Edit', `area:edit:${areaId}`)
-    .text('🗑 Delete', `area:delete:${areaId}`)
+    .text(translate('common.btn-edit'), `area:edit:${areaId}`)
+    .text(translate('common.btn-delete'), `area:delete:${areaId}`)
     .row()
-    .text('← Back', 'action:edit_areas');
+    .text(translate('common.btn-back'), 'action:edit_areas');
 }
 
 /**
  * Create a delete confirmation keyboard for an area.
  */
-export function createDeleteConfirmKeyboard(areaId: string): InlineKeyboard {
+export function createDeleteConfirmKeyboard(areaId: string, t?: TranslateFn): InlineKeyboard {
+  const translate = t || ((key: string) => key);
   return new InlineKeyboard()
-    .text('🗑 Yes, delete', `area:confirm_delete:${areaId}`)
-    .text('← Cancel', `area:select:${areaId}`);
+    .text(translate('common.btn-confirm-delete'), `area:confirm_delete:${areaId}`)
+    .text(translate('common.btn-cancel'), `area:select:${areaId}`);
 }
 
 /**
  * Create an edit area field selection keyboard.
  */
-export function createEditFieldKeyboard(areaId: string): InlineKeyboard {
+export function createEditFieldKeyboard(areaId: string, t?: TranslateFn): InlineKeyboard {
+  const translate = t || ((key: string) => key);
   return new InlineKeyboard()
-    .text('📝 Title', `area:edit_title:${areaId}`)
-    .text('📄 Description', `area:edit_body:${areaId}`)
+    .text(translate('common.btn-edit-title'), `area:edit_title:${areaId}`)
+    .text(translate('common.btn-edit-description'), `area:edit_body:${areaId}`)
     .row()
-    .text('😀 Emoji', `area:edit_emoji:${areaId}`)
+    .text(translate('common.btn-edit-emoji'), `area:edit_emoji:${areaId}`)
     .row()
-    .text('← Back', `area:select:${areaId}`);
+    .text(translate('common.btn-back'), `area:select:${areaId}`);
 }
 
 /**
  * Create an areas overview keyboard with add option.
  * Shows if user can add more areas.
  */
-export function createAreasOverviewKeyboard(currentCount: number): InlineKeyboard {
+export function createAreasOverviewKeyboard(currentCount: number, t?: TranslateFn): InlineKeyboard {
+  const translate = t || ((key: string) => key);
   const keyboard = new InlineKeyboard();
 
   if (currentCount < VALIDATION_LIMITS.MAX_AREAS_PER_USER) {
-    keyboard.text('➕ Add Area', 'action:add_area');
+    keyboard.text(translate('common.btn-add-area'), 'action:add_area');
   }
 
   if (currentCount > 0) {
-    keyboard.text('✏️ Edit Areas', 'action:edit_areas');
+    keyboard.text(translate('common.btn-edit-areas'), 'action:edit_areas');
   }
 
-  keyboard.row().text('← Back', 'action:back');
+  keyboard.row().text(translate('common.btn-back'), 'action:back');
 
   return keyboard;
 }
@@ -84,15 +92,16 @@ export function createAreasOverviewKeyboard(currentCount: number): InlineKeyboar
 /**
  * Create an "Add more areas?" keyboard during onboarding.
  */
-export function createAddMoreAreasKeyboard(currentCount: number): InlineKeyboard {
+export function createAddMoreAreasKeyboard(currentCount: number, t?: TranslateFn): InlineKeyboard {
+  const translate = t || ((key: string) => key);
   const keyboard = new InlineKeyboard();
 
   if (currentCount < VALIDATION_LIMITS.MAX_AREAS_PER_USER) {
     const remaining = VALIDATION_LIMITS.MAX_AREAS_PER_USER - currentCount;
-    keyboard.text(`➕ Add another (${remaining} left)`, 'onboarding:add_more');
+    keyboard.text(translate('common.btn-add-another', { remaining }), 'onboarding:add_more');
   }
 
-  keyboard.row().text('✅ Done, continue', 'onboarding:done_areas');
+  keyboard.row().text(translate('common.btn-done-continue'), 'onboarding:done_areas');
 
   return keyboard;
 }
@@ -100,19 +109,21 @@ export function createAddMoreAreasKeyboard(currentCount: number): InlineKeyboard
 /**
  * Create a skip body/description keyboard.
  */
-export function createSkipBodyKeyboard(): InlineKeyboard {
+export function createSkipBodyKeyboard(t?: TranslateFn): InlineKeyboard {
+  const translate = t || ((key: string) => key);
   return new InlineKeyboard()
-    .text('⏭ Skip (no description)', 'input:skip_body')
+    .text(translate('common.btn-skip-no-description'), 'input:skip_body')
     .row()
-    .text('❌ Cancel', 'action:cancel');
+    .text(translate('common.btn-cancel'), 'action:cancel');
 }
 
 /**
  * Create a skip emoji keyboard.
  */
-export function createSkipEmojiKeyboard(): InlineKeyboard {
+export function createSkipEmojiKeyboard(t?: TranslateFn): InlineKeyboard {
+  const translate = t || ((key: string) => key);
   return new InlineKeyboard()
-    .text('⏭ Skip (no emoji)', 'input:skip_emoji')
+    .text(translate('common.btn-skip-no-emoji'), 'input:skip_emoji')
     .row()
-    .text('❌ Cancel', 'action:cancel');
+    .text(translate('common.btn-cancel'), 'action:cancel');
 }

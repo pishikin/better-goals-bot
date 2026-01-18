@@ -2,8 +2,10 @@ import { Bot, session } from 'grammy';
 import { conversations, createConversation } from '@grammyjs/conversations';
 import { env } from '../config/env.js';
 import type { BotContext, SessionData } from '../types/index.js';
+import { i18n, languageMiddleware } from './middleware/i18n.js';
 
 // Import conversations
+import { languageSelectionConversation } from './conversations/language-selection.js';
 import { onboardingConversation } from './conversations/onboarding.js';
 import { addAreaConversation } from './conversations/add-area.js';
 import { logProgressConversation } from './conversations/log-progress.js';
@@ -24,10 +26,15 @@ bot.use(
   })
 );
 
+// i18n middleware (must be before conversations)
+bot.use(i18n);
+bot.use(languageMiddleware());
+
 // Conversations middleware
 bot.use(conversations());
 
 // Register conversations
+bot.use(createConversation(languageSelectionConversation, 'languageSelection'));
 bot.use(createConversation(onboardingConversation, 'onboarding'));
 bot.use(createConversation(addAreaConversation, 'addArea'));
 bot.use(createConversation(logProgressConversation, 'logProgress'));

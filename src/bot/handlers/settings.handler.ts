@@ -1,14 +1,45 @@
 import type { BotContext } from '../../types/index.js';
 import * as userService from '../../services/user.service.js';
 import { validateTimezone, validateTime } from '../utils/validators.js';
-import { formatSettingsMenu, formatSuccessMessage, formatValidationError } from '../utils/message-formatter.js';
 import {
   createSettingsMenuKeyboard,
   createTimezoneKeyboard,
   createTimeSelectionKeyboard,
   createDigestTimesKeyboard,
   createResetConfirmKeyboard,
+  createLanguageKeyboard,
 } from '../keyboards/settings.keyboard.js';
+import { isValidLanguage, LANGUAGE_NAMES } from '../../locales/index.js';
+
+type TranslateFn = (key: string, params?: Record<string, any>) => string;
+
+/**
+ * Format settings menu using i18n.
+ */
+function formatSettingsMenuLocalized(
+  user: { timezone: string; progressReminderTime: string | null; language: string },
+  digestTimes: string[],
+  t: TranslateFn
+): string {
+  const lines: string[] = [t('settings.settings-title'), ''];
+
+  lines.push(`🌍 *${t('settings.settings-language')}:* ${user.language === 'ru' ? 'Русский' : 'English'}`);
+  lines.push(`🌐 *${t('settings.settings-timezone')}:* ${user.timezone}`);
+
+  if (digestTimes.length > 0) {
+    lines.push(`📋 *${t('settings.settings-digest')}:* ${digestTimes.join(', ')}`);
+  } else {
+    lines.push(`📋 *${t('settings.settings-digest')}:* ${t('settings.digest-current', { times: 'none' })}`);
+  }
+
+  if (user.progressReminderTime) {
+    lines.push(`📝 *${t('settings.settings-reminder')}:* ${user.progressReminderTime}`);
+  } else {
+    lines.push(`📝 *${t('settings.settings-reminder')}:* ${t('settings.reminder-current', { time: 'none' })}`);
+  }
+
+  return lines.join('\n');
+}
 
 /**
  * Handle /settings command.
@@ -16,17 +47,18 @@ import {
 export async function handleSettingsCommand(ctx: BotContext): Promise<void> {
   const telegramId = BigInt(ctx.from?.id ?? 0);
   const user = await userService.getUserByTelegramId(telegramId);
+  const t: TranslateFn = (key, params) => ctx.t(key, params);
 
   if (!user) {
-    await ctx.reply('Please start the bot first with /start');
+    await ctx.reply(t('settings.error-please-start'));
     return;
   }
 
   const digestTimes = userService.getUserDigestTimes(user);
 
-  await ctx.reply(formatSettingsMenu(user, digestTimes), {
+  await ctx.reply(formatSettingsMenuLocalized(user, digestTimes, t), {
     parse_mode: 'Markdown',
-    reply_markup: createSettingsMenuKeyboard(),
+    reply_markup: createSettingsMenuKeyboard(t),
   });
 }
 
@@ -37,9 +69,10 @@ export async function handleSettingsNavigation(ctx: BotContext): Promise<void> {
   const data = ctx.callbackQuery?.data;
   const telegramId = BigInt(ctx.from?.id ?? 0);
   const user = await userService.getUserByTelegramId(telegramId);
+  const t: TranslateFn = (key, params) => ctx.t(key, params);
 
   if (!user) {
-    await ctx.answerCallbackQuery('Please start the bot first');
+    await ctx.answerCallbackQuery(t('settings.error-please-start'));
     return;
   }
 
@@ -48,57 +81,60 @@ export async function handleSettingsNavigation(ctx: BotContext): Promise<void> {
 
   switch (data) {
     case 'action:settings':
-      await ctx.editMessageText(formatSettingsMenu(user, digestTimes), {
+      await ctx.editMessageText(formatSettingsMenuLocalized(user, digestTimes, t), {
         parse_mode: 'Markdown',
-        reply_markup: createSettingsMenuKeyboard(),
+        reply_markup: createSettingsMenuKeyboard(t),
       });
       break;
 
+    case 'settings:language':
+      const currentLang = user.language || 'en';
+      const langName =
+        currentLang === 'en'
+          ? LANGUAGE_NAMES.en.en
+          : LANGUAGE_NAMES.ru.ru;
+      await ctx.editMessageText(
+        `${t('settings.language-title')}\n\n${t('settings.language-current', { language: langName })}\n\n${t('settings.language-select')}`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: createLanguageKeyboard(currentLang, t),
+        }
+      );
+      break;
+
     case 'settings:timezone':
-      await ctx.editMessageText('🌍 *Select your timezone:*', {
+      await ctx.editMessageText(`${t('settings.timezone-title')}\n\n${t('settings.timezone-current', { timezone: user.timezone })}`, {
         parse_mode: 'Markdown',
-        reply_markup: createTimezoneKeyboard(),
+        reply_markup: createTimezoneKeyboard(t),
       });
       break;
 
     case 'settings:digest':
       await ctx.editMessageText(
-        '📋 *Digest Reminders*\n\n' +
-        'Get reminders to review your goals throughout the day.\n' +
-        `Current: ${digestTimes.length > 0 ? digestTimes.join(', ') : 'None'}\n\n` +
-        'You can set up to 3 reminder times.',
+        `${t('settings.digest-title')}\n\n${t('settings.digest-current', { times: digestTimes.length > 0 ? digestTimes.join(', ') : 'none' })}`,
         {
           parse_mode: 'Markdown',
-          reply_markup: createDigestTimesKeyboard(digestTimes),
+          reply_markup: createDigestTimesKeyboard(digestTimes, t),
         }
       );
       break;
 
     case 'settings:progress_reminder':
       await ctx.editMessageText(
-        '📝 *Progress Reminder*\n\n' +
-        'Get reminded to log progress if you haven\'t yet today.\n' +
-        `Current: ${user.progressReminderTime ?? 'Disabled'}`,
+        `${t('settings.reminder-title')}\n\n${t('settings.reminder-current', { time: user.progressReminderTime ?? 'none' })}`,
         {
           parse_mode: 'Markdown',
-          reply_markup: createTimeSelectionKeyboard('evening'),
+          reply_markup: createTimeSelectionKeyboard('evening', t),
         }
       );
       break;
 
     case 'settings:reset':
       await ctx.editMessageText(
-        '⚠️ *Reset All Data*\n\n' +
-        '*This will permanently delete:*\n' +
-        '• All your focus areas\n' +
-        '• All progress history\n' +
-        '• All reminder settings\n' +
-        '• Your streak\n\n' +
-        '❌ *This action cannot be undone!*\n\n' +
-        'Are you absolutely sure?',
+        `${t('settings.reset-title')}\n\n${t('settings.reset-warning')}\n${t('settings.reset-warning-areas')}\n${t('settings.reset-warning-progress')}\n${t('settings.reset-warning-settings')}`,
         {
           parse_mode: 'Markdown',
-          reply_markup: createResetConfirmKeyboard(),
+          reply_markup: createResetConfirmKeyboard(t),
         }
       );
       break;
@@ -115,9 +151,10 @@ export async function handleTimezoneSelection(ctx: BotContext): Promise<void> {
   const data = ctx.callbackQuery?.data;
   const telegramId = BigInt(ctx.from?.id ?? 0);
   const user = await userService.getUserByTelegramId(telegramId);
+  const t: TranslateFn = (key, params) => ctx.t(key, params);
 
   if (!user || !data?.startsWith('timezone:')) {
-    await ctx.answerCallbackQuery('Error');
+    await ctx.answerCallbackQuery(t('common.error-something-wrong'));
     return;
   }
 
@@ -126,17 +163,16 @@ export async function handleTimezoneSelection(ctx: BotContext): Promise<void> {
   const timezone = data.replace('timezone:', '');
 
   if (timezone === 'custom') {
-    await ctx.editMessageText(
-      '📝 *Custom Timezone*\n\nSend your timezone in IANA format:\n\n_Examples: Europe/Berlin, Asia/Singapore_',
-      { parse_mode: 'Markdown' }
-    );
+    await ctx.editMessageText(t('settings.timezone-custom-prompt'), {
+      parse_mode: 'Markdown',
+    });
     return;
   }
 
   const validation = validateTimezone(timezone);
 
   if (!validation.success) {
-    await ctx.reply(formatValidationError('Timezone', validation.error));
+    await ctx.reply(`⚠️ ${t('settings.timezone-invalid')}`);
     return;
   }
 
@@ -146,12 +182,10 @@ export async function handleTimezoneSelection(ctx: BotContext): Promise<void> {
   if (updatedUser) {
     const digestTimes = userService.getUserDigestTimes(updatedUser);
     await ctx.editMessageText(
-      formatSuccessMessage(`Timezone updated to ${timezone}`) +
-        '\n\n' +
-        formatSettingsMenu(updatedUser, digestTimes),
+      `✅ ${t('settings.timezone-updated', { timezone })}\n\n${formatSettingsMenuLocalized(updatedUser, digestTimes, t)}`,
       {
         parse_mode: 'Markdown',
-        reply_markup: createSettingsMenuKeyboard(),
+        reply_markup: createSettingsMenuKeyboard(t),
       }
     );
   }
@@ -164,9 +198,10 @@ export async function handleDigestTimeActions(ctx: BotContext): Promise<void> {
   const data = ctx.callbackQuery?.data;
   const telegramId = BigInt(ctx.from?.id ?? 0);
   const user = await userService.getUserByTelegramId(telegramId);
+  const t: TranslateFn = (key, params) => ctx.t(key, params);
 
   if (!user || !data?.startsWith('digest:')) {
-    await ctx.answerCallbackQuery('Error');
+    await ctx.answerCallbackQuery(t('common.error-something-wrong'));
     return;
   }
 
@@ -176,10 +211,10 @@ export async function handleDigestTimeActions(ctx: BotContext): Promise<void> {
 
   if (action === 'add') {
     await ctx.editMessageText(
-      '➕ *Add Digest Time*\n\nSelect a time for your goals digest:',
+      `➕ ${t('settings.digest-add')}\n\n${t('settings.digest-prompt')}`,
       {
         parse_mode: 'Markdown',
-        reply_markup: createTimeSelectionKeyboard('digest'),
+        reply_markup: createTimeSelectionKeyboard('digest', t),
       }
     );
     return;
@@ -193,12 +228,10 @@ export async function handleDigestTimeActions(ctx: BotContext): Promise<void> {
     if (updatedUser) {
       const digestTimes = userService.getUserDigestTimes(updatedUser);
       await ctx.editMessageText(
-        formatSuccessMessage(`Removed ${timeToRemove}`) +
-          '\n\n📋 *Digest Reminders*\n' +
-          `Current: ${digestTimes.length > 0 ? digestTimes.join(', ') : 'None'}`,
+        `✅ ${t('settings.digest-removed')}\n\n${t('settings.digest-title')}\n${t('settings.digest-current', { times: digestTimes.length > 0 ? digestTimes.join(', ') : 'none' })}`,
         {
           parse_mode: 'Markdown',
-          reply_markup: createDigestTimesKeyboard(digestTimes),
+          reply_markup: createDigestTimesKeyboard(digestTimes, t),
         }
       );
     }
@@ -211,11 +244,10 @@ export async function handleDigestTimeActions(ctx: BotContext): Promise<void> {
     const updatedUser = await userService.getUserById(user.id);
     if (updatedUser) {
       await ctx.editMessageText(
-        formatSuccessMessage('All digest times cleared') +
-          '\n\n📋 *Digest Reminders*\nCurrent: None',
+        `✅ ${t('settings.digest-cleared')}\n\n${t('settings.digest-title')}\n${t('settings.digest-current', { times: 'none' })}`,
         {
           parse_mode: 'Markdown',
-          reply_markup: createDigestTimesKeyboard([]),
+          reply_markup: createDigestTimesKeyboard([], t),
         }
       );
     }
@@ -229,9 +261,10 @@ export async function handleTimeSelection(ctx: BotContext): Promise<void> {
   const data = ctx.callbackQuery?.data;
   const telegramId = BigInt(ctx.from?.id ?? 0);
   const user = await userService.getUserByTelegramId(telegramId);
+  const t: TranslateFn = (key, params) => ctx.t(key, params);
 
   if (!user || !data?.startsWith('time:')) {
-    await ctx.answerCallbackQuery('Error');
+    await ctx.answerCallbackQuery(t('common.error-something-wrong'));
     return;
   }
 
@@ -242,10 +275,8 @@ export async function handleTimeSelection(ctx: BotContext): Promise<void> {
   const time = parts.slice(2).join(':'); // Handle HH:mm format
 
   if (time === 'custom') {
-    await ctx.editMessageText(
-      '⏰ *Custom Time*\n\nSend the time in HH:mm format:\n\n_Example: 07:30, 21:00_',
-      { parse_mode: 'Markdown' }
-    );
+    const promptKey = type === 'evening' ? 'settings.reminder-prompt' : 'settings.digest-prompt';
+    await ctx.editMessageText(t(promptKey), { parse_mode: 'Markdown' });
     return;
   }
 
@@ -258,12 +289,10 @@ export async function handleTimeSelection(ctx: BotContext): Promise<void> {
     if (updatedUser) {
       const digestTimes = userService.getUserDigestTimes(updatedUser);
       await ctx.editMessageText(
-        formatSuccessMessage('Progress reminder disabled') +
-          '\n\n' +
-          formatSettingsMenu(updatedUser, digestTimes),
+        `✅ ${t('settings.reminder-removed')}\n\n${formatSettingsMenuLocalized(updatedUser, digestTimes, t)}`,
         {
           parse_mode: 'Markdown',
-          reply_markup: createSettingsMenuKeyboard(),
+          reply_markup: createSettingsMenuKeyboard(t),
         }
       );
     }
@@ -273,7 +302,7 @@ export async function handleTimeSelection(ctx: BotContext): Promise<void> {
   const validation = validateTime(time);
 
   if (!validation.success) {
-    await ctx.reply(formatValidationError('Time', validation.error));
+    await ctx.reply(`⚠️ ${t('common.error-invalid-time')}`);
     return;
   }
 
@@ -282,18 +311,16 @@ export async function handleTimeSelection(ctx: BotContext): Promise<void> {
     const result = await userService.addDigestTime(user.id, time);
 
     if (!result.success) {
-      await ctx.reply('⚠️ Maximum of 3 digest times reached. Remove one first.');
+      await ctx.reply(`⚠️ ${t('settings.digest-max')}`);
       return;
     }
 
     const digestTimes = userService.getUserDigestTimes(result.user);
     await ctx.editMessageText(
-      formatSuccessMessage(`Digest time ${time} added`) +
-        '\n\n📋 *Digest Reminders*\n' +
-        `Current: ${digestTimes.join(', ')}`,
+      `✅ ${t('settings.digest-added', { time })}\n\n${t('settings.digest-title')}\n${t('settings.digest-current', { times: digestTimes.join(', ') })}`,
       {
         parse_mode: 'Markdown',
-        reply_markup: createDigestTimesKeyboard(digestTimes),
+        reply_markup: createDigestTimesKeyboard(digestTimes, t),
       }
     );
     return;
@@ -307,12 +334,10 @@ export async function handleTimeSelection(ctx: BotContext): Promise<void> {
     if (updatedUser) {
       const digestTimes = userService.getUserDigestTimes(updatedUser);
       await ctx.editMessageText(
-        formatSuccessMessage(`Progress reminder set to ${time}`) +
-          '\n\n' +
-          formatSettingsMenu(updatedUser, digestTimes),
+        `✅ ${t('settings.reminder-updated', { time })}\n\n${formatSettingsMenuLocalized(updatedUser, digestTimes, t)}`,
         {
           parse_mode: 'Markdown',
-          reply_markup: createSettingsMenuKeyboard(),
+          reply_markup: createSettingsMenuKeyboard(t),
         }
       );
     }
@@ -326,48 +351,88 @@ export async function handleResetConfirmation(ctx: BotContext): Promise<void> {
   const data = ctx.callbackQuery?.data;
   const telegramId = BigInt(ctx.from?.id ?? 0);
   const user = await userService.getUserByTelegramId(telegramId);
+  const t: TranslateFn = (key, params) => ctx.t(key, params);
 
   if (!user) {
-    await ctx.answerCallbackQuery('Error');
+    await ctx.answerCallbackQuery(t('common.error-something-wrong'));
     return;
   }
 
   await ctx.answerCallbackQuery();
 
   if (data === 'reset:confirm') {
-    // Show second confirmation
+    // Show second confirmation - still show reset keyboard for final action
     await ctx.editMessageText(
-      '🚨 *FINAL WARNING*\n\n' +
-      'You are about to DELETE ALL YOUR DATA.\n\n' +
-      'Type "DELETE" to confirm, or press Cancel.',
+      `🚨 ${t('settings.reset-title')}\n\n${t('settings.reset-warning')}\n${t('settings.reset-warning-areas')}\n${t('settings.reset-warning-progress')}\n${t('settings.reset-warning-settings')}`,
       {
         parse_mode: 'Markdown',
-        reply_markup: createSettingsMenuKeyboard(), // Just back button
+        reply_markup: createResetConfirmKeyboard(t),
       }
     );
-    // The actual deletion will be handled by text input
-    // For simplicity, we'll do it with a second button click
     return;
   }
 
   if (data === 'reset:execute') {
     await userService.fullReset(user.id);
 
-    await ctx.editMessageText(
-      '✅ *All data has been deleted*\n\n' +
-      'Your account has been reset.\n' +
-      'Use /start to begin again.',
-      { parse_mode: 'Markdown' }
-    );
+    await ctx.editMessageText(`✅ ${t('settings.reset-success')}`, {
+      parse_mode: 'Markdown',
+    });
     return;
   }
 
   // Cancel - go back to settings
   const digestTimes = userService.getUserDigestTimes(user);
-  await ctx.editMessageText(formatSettingsMenu(user, digestTimes), {
+  await ctx.editMessageText(formatSettingsMenuLocalized(user, digestTimes, t), {
     parse_mode: 'Markdown',
-    reply_markup: createSettingsMenuKeyboard(),
+    reply_markup: createSettingsMenuKeyboard(t),
   });
+}
+
+/**
+ * Handle language selection.
+ */
+export async function handleLanguageSelection(ctx: BotContext): Promise<void> {
+  const data = ctx.callbackQuery?.data;
+  const telegramId = BigInt(ctx.from?.id ?? 0);
+  const user = await userService.getUserByTelegramId(telegramId);
+
+  if (!user || !data?.startsWith('language:')) {
+    await ctx.answerCallbackQuery(ctx.t('common.error-something-wrong'));
+    return;
+  }
+
+  await ctx.answerCallbackQuery();
+
+  const selectedLang = data.replace('language:', '');
+
+  if (!isValidLanguage(selectedLang)) {
+    await ctx.reply(ctx.t('common.error-something-wrong'));
+    return;
+  }
+
+  // Update user language
+  await userService.updateLanguage(user.id, selectedLang);
+
+  // Update context locale
+  await ctx.i18n.setLocale(selectedLang);
+
+  // Get fresh translation function with new locale
+  const t: TranslateFn = (key, params) => ctx.t(key, params);
+
+  const langName = selectedLang === 'en' ? 'English' : 'Русский';
+
+  const updatedUser = await userService.getUserById(user.id);
+  if (updatedUser) {
+    const digestTimes = userService.getUserDigestTimes(updatedUser);
+    await ctx.editMessageText(
+      `✅ ${t('settings.language-updated', { language: langName })}\n\n${formatSettingsMenuLocalized(updatedUser, digestTimes, t)}`,
+      {
+        parse_mode: 'Markdown',
+        reply_markup: createSettingsMenuKeyboard(t),
+      }
+    );
+  }
 }
 
 /**
@@ -380,6 +445,8 @@ export async function handleSettingsCallbacks(ctx: BotContext): Promise<void> {
 
   if (data.startsWith('settings:') || data === 'action:settings') {
     await handleSettingsNavigation(ctx);
+  } else if (data.startsWith('language:')) {
+    await handleLanguageSelection(ctx);
   } else if (data.startsWith('timezone:')) {
     await handleTimezoneSelection(ctx);
   } else if (data.startsWith('time:')) {

@@ -5,15 +5,11 @@ import * as areasService from '../../services/areas.service.js';
 import * as progressService from '../../services/progress.service.js';
 import { getUserStatistics, getLastProgressDate } from '../../services/statistics.service.js';
 import { validateProgressContent } from '../utils/validators.js';
-import {
-  formatProgressHeader,
-  formatProgressSummary,
-  formatPinnedMessage,
-  formatValidationError,
-  formatSkipConfirmation,
-} from '../utils/message-formatter.js';
+import { formatPinnedMessage } from '../utils/message-formatter.js';
 import { createMainMenuKeyboard } from '../keyboards/main-menu.keyboard.js';
 import { createProgressControlKeyboard, createAllLoggedKeyboard } from '../keyboards/progress.keyboard.js';
+
+type TranslateFn = (key: string, params?: Record<string, any>) => string;
 
 /**
  * Temporary storage for progress entries during a session.
@@ -37,14 +33,17 @@ export async function logProgressConversation(
   ctx: BotContext
 ): Promise<void> {
   const telegramId = BigInt(ctx.from?.id ?? 0);
+  const t: TranslateFn = (key, params) => ctx.t(key, params);
 
   // Get user
   const user = await conversation.external(() => userService.getUserByTelegramId(telegramId));
 
   if (!user) {
-    await ctx.reply('Please start the bot first with /start');
+    await ctx.reply(t('settings.error-please-start'));
     return;
   }
+
+  const language = user.language || 'en';
 
   // Get areas without today's progress
   const areasToLog = await conversation.external(() =>
@@ -52,13 +51,10 @@ export async function logProgressConversation(
   );
 
   if (areasToLog.length === 0) {
-    await ctx.reply(
-      '✅ *All caught up!*\n\nYou\'ve already logged progress for all areas today.',
-      {
-        parse_mode: 'Markdown',
-        reply_markup: createAllLoggedKeyboard(),
-      }
-    );
+    await ctx.reply(t('progress.progress-all-caught-up'), {
+      parse_mode: 'Markdown',
+      reply_markup: createAllLoggedKeyboard(t),
+    });
     return;
   }
 
@@ -77,10 +73,21 @@ export async function logProgressConversation(
     const totalAreas = areasToLog.length;
 
     // Show the area prompt
-    await ctx.reply(formatProgressHeader(currentIndex, totalAreas, area), {
-      parse_mode: 'Markdown',
-      reply_markup: createProgressControlKeyboard(),
-    });
+    const areaEmoji = area.emoji ?? '📝';
+    const areaBody = area.body ?? 'none';
+    await ctx.reply(
+      t('progress.progress-area-prompt', {
+        current: currentIndex,
+        total: totalAreas,
+        emoji: areaEmoji,
+        title: area.title,
+        body: areaBody,
+      }),
+      {
+        parse_mode: 'Markdown',
+        reply_markup: createProgressControlKeyboard(t),
+      }
+    );
 
     // Wait for response
     let entryDone = false;
@@ -93,7 +100,7 @@ export async function logProgressConversation(
 
         if (response.callbackQuery.data === 'progress:skip') {
           skippedCount++;
-          await ctx.reply(formatSkipConfirmation(area));
+          await ctx.reply(t('progress.progress-skipped-area', { emoji: areaEmoji, title: area.title }));
           entryDone = true;
         } else if (response.callbackQuery.data === 'progress:cancel') {
           cancelled = true;
@@ -108,7 +115,7 @@ export async function logProgressConversation(
           });
           entryDone = true;
         } else {
-          await ctx.reply(formatValidationError('Progress entry', validation.error));
+          await ctx.reply(`⚠️ ${t('common.error-progress-too-long')}`);
         }
       }
     }
@@ -116,10 +123,7 @@ export async function logProgressConversation(
 
   // Handle cancellation
   if (cancelled) {
-    await ctx.reply(
-      '❌ *Progress logging cancelled*\n\nNo entries were saved from this session.',
-      { parse_mode: 'Markdown' }
-    );
+    await ctx.reply(t('progress.progress-cancelled'), { parse_mode: 'Markdown' });
     return;
   }
 
@@ -134,12 +138,12 @@ export async function logProgressConversation(
   const stats = await conversation.external(() => getUserStatistics(user.id, user.timezone));
 
   // Show summary
-  await ctx.reply(formatProgressSummary(sessionEntries.length, skippedCount, stats.currentStreak), {
-    parse_mode: 'Markdown',
-  });
+  const summaryText = t('progress.progress-summary', { count: sessionEntries.length });
+  const streakText = stats.currentStreak > 0 ? '\n\n' + t('progress.progress-streak', { days: stats.currentStreak }) : '';
+  await ctx.reply(summaryText + streakText, { parse_mode: 'Markdown' });
 
   // Update pinned message
-  await updatePinnedMessage(conversation, ctx, user.id, user.timezone, user.pinnedMessageId);
+  await updatePinnedMessage(conversation, ctx, user.id, user.timezone, user.pinnedMessageId, language, t);
 }
 
 /**
@@ -150,13 +154,15 @@ async function updatePinnedMessage(
   ctx: BotContext,
   userId: string,
   timezone: string,
-  pinnedMessageId: bigint | null
+  pinnedMessageId: bigint | null,
+  language: string,
+  t: TranslateFn
 ): Promise<void> {
   const areas = await conversation.external(() => areasService.getUserAreas(userId));
   const stats = await conversation.external(() => getUserStatistics(userId, timezone));
   const lastProgress = await conversation.external(() => getLastProgressDate(userId));
 
-  const messageText = formatPinnedMessage(areas, stats, lastProgress, timezone);
+  const messageText = formatPinnedMessage(areas, stats, lastProgress, timezone, language);
 
   if (pinnedMessageId) {
     try {
@@ -164,7 +170,7 @@ async function updatePinnedMessage(
         ctx.chat?.id ?? 0,
         Number(pinnedMessageId),
         messageText,
-        { reply_markup: createMainMenuKeyboard() }
+        { reply_markup: createMainMenuKeyboard(t) }
       );
     } catch {
       // Edit might fail if message hasn't changed, that's okay

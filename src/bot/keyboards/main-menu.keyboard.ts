@@ -5,31 +5,40 @@ import { InlineKeyboard } from 'grammy';
  * Uses inline keyboards for better UX and callback handling.
  */
 
+type TranslateFn = (key: string) => string;
+
 /**
  * Create the main menu keyboard for the pinned message.
  * Shows primary actions: Log Progress, Add Area, Edit, Settings
  */
-export function createMainMenuKeyboard(): InlineKeyboard {
+export function createMainMenuKeyboard(t?: TranslateFn): InlineKeyboard {
+  const translate = t || ((key: string) => key);
+
   return new InlineKeyboard()
-    .text('📝 Log Progress', 'action:progress')
-    .text('➕ Add', 'action:add_area')
+    .text(translate('common.btn-log-progress'), 'action:progress')
+    .text(translate('common.btn-add-area'), 'action:add_area')
     .row()
-    .text('✏️ Edit', 'action:edit_areas')
-    .text('⚙️ Settings', 'action:settings');
+    .text(translate('common.btn-edit'), 'action:edit_areas')
+    .text(translate('common.btn-settings'), 'action:settings');
 }
 
 /**
  * Create a simple back button keyboard.
  */
-export function createBackKeyboard(callbackData: string = 'action:back'): InlineKeyboard {
-  return new InlineKeyboard().text('← Back', callbackData);
+export function createBackKeyboard(
+  t?: TranslateFn,
+  callbackData: string = 'action:back'
+): InlineKeyboard {
+  const translate = t || ((key: string) => key);
+  return new InlineKeyboard().text(translate('common.btn-back'), callbackData);
 }
 
 /**
  * Create a cancel button keyboard.
  */
-export function createCancelKeyboard(): InlineKeyboard {
-  return new InlineKeyboard().text('❌ Cancel', 'action:cancel');
+export function createCancelKeyboard(t?: TranslateFn): InlineKeyboard {
+  const translate = t || ((key: string) => key);
+  return new InlineKeyboard().text(translate('common.btn-cancel'), 'action:cancel');
 }
 
 /**
@@ -37,18 +46,24 @@ export function createCancelKeyboard(): InlineKeyboard {
  */
 export function createConfirmKeyboard(
   confirmCallback: string,
+  t?: TranslateFn,
   cancelCallback: string = 'action:cancel'
 ): InlineKeyboard {
+  const translate = t || ((key: string) => key);
   return new InlineKeyboard()
-    .text('✅ Yes', confirmCallback)
-    .text('❌ No', cancelCallback);
+    .text(translate('common.btn-confirm-delete'), confirmCallback)
+    .text(translate('common.btn-cancel'), cancelCallback);
 }
 
 /**
  * Create a done/continue keyboard for multi-step flows.
  */
-export function createDoneKeyboard(doneCallback: string = 'action:done'): InlineKeyboard {
+export function createDoneKeyboard(
+  t?: TranslateFn,
+  doneCallback: string = 'action:done'
+): InlineKeyboard {
+  const translate = t || ((key: string) => key);
   return new InlineKeyboard()
-    .text('✅ Done', doneCallback)
-    .text('❌ Cancel', 'action:cancel');
+    .text(translate('common.btn-done') || '✅ Done', doneCallback)
+    .text(translate('common.btn-cancel'), 'action:cancel');
 }
