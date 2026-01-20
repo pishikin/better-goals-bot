@@ -85,13 +85,22 @@ export async function updateArea(
     emoji?: string | null;
   }
 ): Promise<Area> {
+  // Build update object with only defined fields
+  const updateData: Record<string, string | null> = {};
+
+  if (data.title !== undefined) {
+    updateData.title = data.title;
+  }
+  if (data.body !== undefined) {
+    updateData.body = data.body;
+  }
+  if (data.emoji !== undefined) {
+    updateData.emoji = data.emoji;
+  }
+
   return prisma.area.update({
     where: { id: areaId },
-    data: {
-      title: data.title,
-      body: data.body,
-      emoji: data.emoji,
-    },
+    data: updateData,
   });
 }
 

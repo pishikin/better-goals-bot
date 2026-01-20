@@ -39,7 +39,7 @@ export async function logProgressConversation(
   const user = await conversation.external(() => userService.getUserByTelegramId(telegramId));
 
   if (!user) {
-    await ctx.reply(t('settings.error-please-start'));
+    await ctx.reply(t('error-please-start'));
     return;
   }
 
@@ -51,7 +51,7 @@ export async function logProgressConversation(
   );
 
   if (areasToLog.length === 0) {
-    await ctx.reply(t('progress.progress-all-caught-up'), {
+    await ctx.reply(t('progress-all-caught-up'), {
       parse_mode: 'Markdown',
       reply_markup: createAllLoggedKeyboard(t),
     });
@@ -76,7 +76,7 @@ export async function logProgressConversation(
     const areaEmoji = area.emoji ?? '📝';
     const areaBody = area.body ?? 'none';
     await ctx.reply(
-      t('progress.progress-area-prompt', {
+      t('progress-area-prompt', {
         current: currentIndex,
         total: totalAreas,
         emoji: areaEmoji,
@@ -100,7 +100,7 @@ export async function logProgressConversation(
 
         if (response.callbackQuery.data === 'progress:skip') {
           skippedCount++;
-          await ctx.reply(t('progress.progress-skipped-area', { emoji: areaEmoji, title: area.title }));
+          await ctx.reply(t('progress-skipped-area', { emoji: areaEmoji, title: area.title }));
           entryDone = true;
         } else if (response.callbackQuery.data === 'progress:cancel') {
           cancelled = true;
@@ -115,7 +115,7 @@ export async function logProgressConversation(
           });
           entryDone = true;
         } else {
-          await ctx.reply(`⚠️ ${t('common.error-progress-too-long')}`);
+          await ctx.reply(`⚠️ ${t('error-progress-too-long')}`);
         }
       }
     }
@@ -123,7 +123,7 @@ export async function logProgressConversation(
 
   // Handle cancellation
   if (cancelled) {
-    await ctx.reply(t('progress.progress-cancelled'), { parse_mode: 'Markdown' });
+    await ctx.reply(t('progress-cancelled'), { parse_mode: 'Markdown' });
     return;
   }
 
@@ -138,8 +138,8 @@ export async function logProgressConversation(
   const stats = await conversation.external(() => getUserStatistics(user.id, user.timezone));
 
   // Show summary
-  const summaryText = t('progress.progress-summary', { count: sessionEntries.length });
-  const streakText = stats.currentStreak > 0 ? '\n\n' + t('progress.progress-streak', { days: stats.currentStreak }) : '';
+  const summaryText = t('progress-summary', { count: sessionEntries.length });
+  const streakText = stats.currentStreak > 0 ? '\n\n' + t('progress-streak', { days: stats.currentStreak }) : '';
   await ctx.reply(summaryText + streakText, { parse_mode: 'Markdown' });
 
   // Update pinned message

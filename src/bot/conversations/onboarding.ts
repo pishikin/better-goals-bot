@@ -39,7 +39,7 @@ export async function onboardingConversation(
   const language = user.language || 'en';
 
   // Step 1: Welcome message
-  await ctx.reply(t('onboarding.welcome'), { parse_mode: 'Markdown' });
+  await ctx.reply(t('welcome'), { parse_mode: 'Markdown' });
 
   // Step 2: Add focus areas
   let areasCount = 0;
@@ -48,13 +48,13 @@ export async function onboardingConversation(
   while (continueAddingAreas && areasCount < VALIDATION_LIMITS.MAX_AREAS_PER_USER) {
     // Prompt for area title
     const titlePrompt = areasCount === 0
-      ? t('onboarding.first-area-prompt')
-      : t('onboarding.next-area-prompt');
+      ? t('first-area-prompt')
+      : t('next-area-prompt');
 
     await ctx.reply(titlePrompt, {
       parse_mode: 'Markdown',
       reply_markup: areasCount > 0
-        ? new InlineKeyboard().text(t('onboarding.btn-done-areas'), 'onboarding:done_areas')
+        ? new InlineKeyboard().text(t('btn-done-areas'), 'onboarding:done_areas')
         : undefined,
     });
 
@@ -71,14 +71,14 @@ export async function onboardingConversation(
     const titleValidation = validateAreaTitle(titleText);
 
     if (!titleValidation.success) {
-      await ctx.reply(`⚠️ ${t('common.error-area-title-required')}`);
+      await ctx.reply(`⚠️ ${t('error-area-title-required')}`);
       continue;
     }
 
     // Ask for description (optional)
-    await ctx.reply(t('onboarding.description-prompt', { title: titleValidation.data }), {
+    await ctx.reply(t('description-prompt', { title: titleValidation.data }), {
       parse_mode: 'Markdown',
-      reply_markup: new InlineKeyboard().text(t('common.btn-skip'), 'input:skip_body'),
+      reply_markup: new InlineKeyboard().text(t('btn-skip'), 'input:skip_body'),
     });
 
     const bodyResponse = await conversation.waitFor([':text', 'callback_query:data']);
@@ -94,9 +94,9 @@ export async function onboardingConversation(
     }
 
     // Ask for emoji (optional)
-    await ctx.reply(t('onboarding.emoji-prompt'), {
+    await ctx.reply(t('emoji-prompt'), {
       parse_mode: 'Markdown',
-      reply_markup: new InlineKeyboard().text(t('common.btn-skip'), 'input:skip_emoji'),
+      reply_markup: new InlineKeyboard().text(t('btn-skip'), 'input:skip_emoji'),
     });
 
     const emojiResponse = await conversation.waitFor([':text', 'callback_query:data']);
@@ -125,11 +125,11 @@ export async function onboardingConversation(
     // Show confirmation
     const areaEmoji = area.emoji ?? '✓';
     const areaBody = area.body ? `\n→ ${area.body}` : '';
-    await ctx.reply(`${areaEmoji} *${area.title}* ${t('common.msg-saved')}${areaBody}`, { parse_mode: 'Markdown' });
+    await ctx.reply(`${areaEmoji} *${area.title}* ${t('msg-saved')}${areaBody}`, { parse_mode: 'Markdown' });
 
     // Ask to add more if under limit
     if (areasCount < VALIDATION_LIMITS.MAX_AREAS_PER_USER) {
-      await ctx.reply(t('onboarding.area-count', { count: areasCount }), {
+      await ctx.reply(t('area-count', { count: areasCount }), {
         reply_markup: createAddMoreAreasKeyboard(areasCount, t),
       });
 
@@ -140,13 +140,13 @@ export async function onboardingConversation(
         continueAddingAreas = false;
       }
     } else {
-      await ctx.reply(t('onboarding.max-areas-reached', { max: VALIDATION_LIMITS.MAX_AREAS_PER_USER }));
+      await ctx.reply(t('max-areas-reached', { max: VALIDATION_LIMITS.MAX_AREAS_PER_USER }));
       continueAddingAreas = false;
     }
   }
 
   // Step 3: Timezone selection
-  await ctx.reply(t('onboarding.timezone-title'), {
+  await ctx.reply(t('timezone-title'), {
     parse_mode: 'Markdown',
     reply_markup: createTimezoneKeyboard(t),
   });
@@ -161,7 +161,7 @@ export async function onboardingConversation(
       await tzResponse.answerCallbackQuery();
 
       if (tzResponse.callbackQuery.data === 'timezone:custom') {
-        await ctx.reply(t('onboarding.timezone-custom-prompt'), { parse_mode: 'Markdown' });
+        await ctx.reply(t('timezone-custom-prompt'), { parse_mode: 'Markdown' });
         continue;
       }
 
@@ -175,16 +175,16 @@ export async function onboardingConversation(
         timezone = tzValidation.data;
         timezoneSet = true;
       } else {
-        await ctx.reply(`⚠️ ${t('common.error-invalid-timezone')}`);
+        await ctx.reply(`⚠️ ${t('error-invalid-timezone')}`);
       }
     }
   }
 
   await conversation.external(() => userService.updateTimezone(user.id, timezone));
-  await ctx.reply(`✅ ${t('onboarding.timezone-set', { timezone })}`);
+  await ctx.reply(`✅ ${t('timezone-set', { timezone })}`);
 
   // Step 4: Digest reminder (optional)
-  await ctx.reply(t('onboarding.digest-title'), {
+  await ctx.reply(t('digest-title'), {
     parse_mode: 'Markdown',
     reply_markup: createTimeSelectionKeyboard('morning', t),
   });
@@ -198,7 +198,7 @@ export async function onboardingConversation(
   if (digestData === 'time:morning:disable' || digestData === 'action:settings') {
     // Skip digest
   } else if (digestData === 'time:morning:custom') {
-    await ctx.reply(t('onboarding.time-format-prompt', { example: '09:00' }));
+    await ctx.reply(t('time-format-prompt', { example: '09:00' }));
     const customTime = await conversation.waitFor(':text');
     const timeValidation = validateTime(customTime.message?.text ?? '');
     if (timeValidation.success) {
@@ -210,11 +210,11 @@ export async function onboardingConversation(
 
   if (digestTime) {
     await conversation.external(() => userService.addDigestTime(user.id, digestTime as string));
-    await ctx.reply(`✅ ${t('onboarding.reminder-digest-added', { time: digestTime })}`);
+    await ctx.reply(`✅ ${t('reminder-digest-added', { time: digestTime })}`);
   }
 
   // Step 5: Progress reminder (optional)
-  await ctx.reply(t('onboarding.progress-title'), {
+  await ctx.reply(t('progress-title'), {
     parse_mode: 'Markdown',
     reply_markup: createTimeSelectionKeyboard('evening', t),
   });
@@ -228,7 +228,7 @@ export async function onboardingConversation(
   if (reminderData === 'time:evening:disable' || reminderData === 'action:settings') {
     // Skip reminder
   } else if (reminderData === 'time:evening:custom') {
-    await ctx.reply(t('onboarding.time-format-prompt', { example: '21:00' }));
+    await ctx.reply(t('time-format-prompt', { example: '21:00' }));
     const customTime = await conversation.waitFor(':text');
     const timeValidation = validateTime(customTime.message?.text ?? '');
     if (timeValidation.success) {
@@ -240,7 +240,7 @@ export async function onboardingConversation(
 
   if (reminderTime) {
     await conversation.external(() => userService.updateProgressReminderTime(user.id, reminderTime));
-    await ctx.reply(`✅ ${t('onboarding.reminder-progress-set', { time: reminderTime })}`);
+    await ctx.reply(`✅ ${t('reminder-progress-set', { time: reminderTime })}`);
   }
 
   // Step 6: Complete onboarding
@@ -267,5 +267,5 @@ export async function onboardingConversation(
   }
 
   // Final message
-  await ctx.reply(t('onboarding.onboarding-complete'), { parse_mode: 'Markdown' });
+  await ctx.reply(t('onboarding-complete'), { parse_mode: 'Markdown' });
 }

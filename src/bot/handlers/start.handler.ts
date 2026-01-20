@@ -39,9 +39,8 @@ export async function handleStart(ctx: BotContext): Promise<void> {
     user.language
   );
 
-  // For now, use default English keyboard until we refactor all handlers
   await ctx.reply(messageText, {
-    reply_markup: createMainMenuKeyboard(),
+    reply_markup: createMainMenuKeyboard(ctx.t),
   });
 }
 

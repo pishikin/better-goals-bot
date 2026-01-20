@@ -44,7 +44,7 @@ export async function languageSelectionConversation(
   await userService.updateLanguage(user.id, selectedLang);
 
   // Update context locale for subsequent messages
-  await langCtx.i18n.setLocale(selectedLang);
+  langCtx.i18n.useLocale(selectedLang);
 
   // Confirm selection
   const confirmMsg =

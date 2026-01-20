@@ -26,7 +26,7 @@ export function createAreasListKeyboard(
     keyboard.text(label, `${actionPrefix}:${area.id}`).row();
   });
 
-  keyboard.text(translate('common.btn-back'), 'action:back');
+  keyboard.text(translate('btn-back'), 'action:back');
 
   return keyboard;
 }
@@ -38,10 +38,10 @@ export function createAreasListKeyboard(
 export function createAreaActionsKeyboard(areaId: string, t?: TranslateFn): InlineKeyboard {
   const translate = t || ((key: string) => key);
   return new InlineKeyboard()
-    .text(translate('common.btn-edit'), `area:edit:${areaId}`)
-    .text(translate('common.btn-delete'), `area:delete:${areaId}`)
+    .text(translate('btn-edit'), `area:edit:${areaId}`)
+    .text(translate('btn-delete'), `area:delete:${areaId}`)
     .row()
-    .text(translate('common.btn-back'), 'action:edit_areas');
+    .text(translate('btn-back'), 'action:edit_areas');
 }
 
 /**
@@ -50,8 +50,8 @@ export function createAreaActionsKeyboard(areaId: string, t?: TranslateFn): Inli
 export function createDeleteConfirmKeyboard(areaId: string, t?: TranslateFn): InlineKeyboard {
   const translate = t || ((key: string) => key);
   return new InlineKeyboard()
-    .text(translate('common.btn-confirm-delete'), `area:confirm_delete:${areaId}`)
-    .text(translate('common.btn-cancel'), `area:select:${areaId}`);
+    .text(translate('btn-confirm-delete'), `area:confirm_delete:${areaId}`)
+    .text(translate('btn-cancel'), `area:select:${areaId}`);
 }
 
 /**
@@ -60,12 +60,12 @@ export function createDeleteConfirmKeyboard(areaId: string, t?: TranslateFn): In
 export function createEditFieldKeyboard(areaId: string, t?: TranslateFn): InlineKeyboard {
   const translate = t || ((key: string) => key);
   return new InlineKeyboard()
-    .text(translate('common.btn-edit-title'), `area:edit_title:${areaId}`)
-    .text(translate('common.btn-edit-description'), `area:edit_body:${areaId}`)
+    .text(translate('btn-edit-title'), `area:edit_title:${areaId}`)
+    .text(translate('btn-edit-description'), `area:edit_body:${areaId}`)
     .row()
-    .text(translate('common.btn-edit-emoji'), `area:edit_emoji:${areaId}`)
+    .text(translate('btn-edit-emoji'), `area:edit_emoji:${areaId}`)
     .row()
-    .text(translate('common.btn-back'), `area:select:${areaId}`);
+    .text(translate('btn-back'), `area:select:${areaId}`);
 }
 
 /**
@@ -77,14 +77,14 @@ export function createAreasOverviewKeyboard(currentCount: number, t?: TranslateF
   const keyboard = new InlineKeyboard();
 
   if (currentCount < VALIDATION_LIMITS.MAX_AREAS_PER_USER) {
-    keyboard.text(translate('common.btn-add-area'), 'action:add_area');
+    keyboard.text(translate('btn-add-area'), 'action:add_area');
   }
 
   if (currentCount > 0) {
-    keyboard.text(translate('common.btn-edit-areas'), 'action:edit_areas');
+    keyboard.text(translate('btn-edit-areas'), 'action:edit_areas');
   }
 
-  keyboard.row().text(translate('common.btn-back'), 'action:back');
+  keyboard.row().text(translate('btn-back'), 'action:back');
 
   return keyboard;
 }
@@ -98,10 +98,10 @@ export function createAddMoreAreasKeyboard(currentCount: number, t?: TranslateFn
 
   if (currentCount < VALIDATION_LIMITS.MAX_AREAS_PER_USER) {
     const remaining = VALIDATION_LIMITS.MAX_AREAS_PER_USER - currentCount;
-    keyboard.text(translate('common.btn-add-another', { remaining }), 'onboarding:add_more');
+    keyboard.text(translate('btn-add-another', { remaining }), 'onboarding:add_more');
   }
 
-  keyboard.row().text(translate('common.btn-done-continue'), 'onboarding:done_areas');
+  keyboard.row().text(translate('btn-done-continue'), 'onboarding:done_areas');
 
   return keyboard;
 }
@@ -112,9 +112,9 @@ export function createAddMoreAreasKeyboard(currentCount: number, t?: TranslateFn
 export function createSkipBodyKeyboard(t?: TranslateFn): InlineKeyboard {
   const translate = t || ((key: string) => key);
   return new InlineKeyboard()
-    .text(translate('common.btn-skip-no-description'), 'input:skip_body')
+    .text(translate('btn-skip-no-description'), 'input:skip_body')
     .row()
-    .text(translate('common.btn-cancel'), 'action:cancel');
+    .text(translate('btn-cancel'), 'action:cancel');
 }
 
 /**
@@ -123,7 +123,7 @@ export function createSkipBodyKeyboard(t?: TranslateFn): InlineKeyboard {
 export function createSkipEmojiKeyboard(t?: TranslateFn): InlineKeyboard {
   const translate = t || ((key: string) => key);
   return new InlineKeyboard()
-    .text(translate('common.btn-skip-no-emoji'), 'input:skip_emoji')
+    .text(translate('btn-skip-no-emoji'), 'input:skip_emoji')
     .row()
-    .text(translate('common.btn-cancel'), 'action:cancel');
+    .text(translate('btn-cancel'), 'action:cancel');
 }

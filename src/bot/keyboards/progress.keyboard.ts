@@ -13,8 +13,8 @@ type TranslateFn = (key: string, params?: Record<string, any>) => string;
 export function createProgressControlKeyboard(t?: TranslateFn): InlineKeyboard {
   const translate = t || ((key: string) => key);
   return new InlineKeyboard()
-    .text(translate('common.btn-skip'), 'progress:skip')
-    .text(translate('common.btn-cancel-all'), 'progress:cancel');
+    .text(translate('btn-skip'), 'progress:skip')
+    .text(translate('btn-cancel-all'), 'progress:cancel');
 }
 
 /**
@@ -22,7 +22,7 @@ export function createProgressControlKeyboard(t?: TranslateFn): InlineKeyboard {
  */
 export function createSkipKeyboard(t?: TranslateFn): InlineKeyboard {
   const translate = t || ((key: string) => key);
-  return new InlineKeyboard().text(translate('common.btn-skip'), 'progress:skip');
+  return new InlineKeyboard().text(translate('btn-skip'), 'progress:skip');
 }
 
 /**
@@ -32,9 +32,9 @@ export function createSkipKeyboard(t?: TranslateFn): InlineKeyboard {
 export function createAllLoggedKeyboard(t?: TranslateFn): InlineKeyboard {
   const translate = t || ((key: string) => key);
   return new InlineKeyboard()
-    .text(translate('common.btn-generate-summary'), 'action:summary')
+    .text(translate('btn-generate-summary'), 'action:summary')
     .row()
-    .text(translate('common.btn-back'), 'action:back');
+    .text(translate('btn-back'), 'action:back');
 }
 
 /**
@@ -43,6 +43,6 @@ export function createAllLoggedKeyboard(t?: TranslateFn): InlineKeyboard {
 export function createProgressCompleteKeyboard(t?: TranslateFn): InlineKeyboard {
   const translate = t || ((key: string) => key);
   return new InlineKeyboard()
-    .text(translate('common.btn-generate-summary'), 'action:summary')
-    .text(translate('common.btn-back'), 'action:main_menu');
+    .text(translate('btn-generate-summary'), 'action:summary')
+    .text(translate('btn-back'), 'action:main_menu');
 }
