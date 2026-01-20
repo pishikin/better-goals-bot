@@ -17,7 +17,7 @@ export function languageMiddleware(): MiddlewareFn<BotContext> {
       const user = await userService.findByTelegramId(BigInt(ctx.from.id));
 
       if (user?.language) {
-        await ctx.i18n.setLocale(user.language);
+        ctx.i18n.useLocale(user.language);
       }
     } catch (error) {
       // Silently fail - will use default language

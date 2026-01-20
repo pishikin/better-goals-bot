@@ -13,17 +13,17 @@ type TranslateFn = (key: string) => string;
 export function createSettingsMenuKeyboard(t?: TranslateFn): InlineKeyboard {
   const translate = t || ((key: string) => key);
   return new InlineKeyboard()
-    .text(translate('settings.btn-language'), 'settings:language')
+    .text(translate('btn-language'), 'settings:language')
     .row()
-    .text(translate('settings.btn-timezone'), 'settings:timezone')
+    .text(translate('btn-timezone'), 'settings:timezone')
     .row()
-    .text(translate('settings.btn-digest-reminders'), 'settings:digest')
+    .text(translate('btn-digest-reminders'), 'settings:digest')
     .row()
-    .text(translate('settings.btn-progress-reminder'), 'settings:progress_reminder')
+    .text(translate('btn-progress-reminder'), 'settings:progress_reminder')
     .row()
-    .text(translate('settings.btn-reset-all'), 'settings:reset')
+    .text(translate('btn-reset-all'), 'settings:reset')
     .row()
-    .text(translate('settings.btn-back'), 'action:back');
+    .text(translate('btn-back'), 'action:back');
 }
 
 /**
@@ -38,8 +38,8 @@ export function createTimezoneKeyboard(t?: TranslateFn): InlineKeyboard {
     keyboard.text(tz.label, `timezone:${tz.value}`).row();
   });
 
-  keyboard.text(translate('settings.btn-other-custom'), 'timezone:custom').row();
-  keyboard.text(translate('settings.btn-back'), 'action:settings');
+  keyboard.text(translate('btn-other-custom'), 'timezone:custom').row();
+  keyboard.text(translate('btn-back'), 'action:settings');
 
   return keyboard;
 }
@@ -65,7 +65,7 @@ export function createTimeSelectionKeyboard(
       .row()
       .text('14:00', `${prefix}:14:00`)
       .text('17:00', `${prefix}:17:00`)
-      .text(translate('settings.btn-custom'), `${prefix}:custom`)
+      .text(translate('btn-custom'), `${prefix}:custom`)
       .row();
   } else {
     // Evening options: 18:00 - 22:00
@@ -76,15 +76,15 @@ export function createTimeSelectionKeyboard(
       .row()
       .text('21:00', `${prefix}:21:00`)
       .text('22:00', `${prefix}:22:00`)
-      .text(translate('settings.btn-custom'), `${prefix}:custom`)
+      .text(translate('btn-custom'), `${prefix}:custom`)
       .row();
   }
 
   if (settingType === 'evening') {
-    keyboard.text(translate('settings.btn-disable'), `${prefix}:disable`).row();
+    keyboard.text(translate('btn-disable'), `${prefix}:disable`).row();
   }
 
-  keyboard.text(translate('settings.btn-back'), settingType === 'digest' ? 'settings:digest' : 'action:settings');
+  keyboard.text(translate('btn-back'), settingType === 'digest' ? 'settings:digest' : 'action:settings');
 
   return keyboard;
 }
@@ -105,15 +105,15 @@ export function createDigestTimesKeyboard(currentTimes: string[], t?: TranslateF
 
   // Add button if under limit
   if (currentTimes.length < MAX_TIMES) {
-    keyboard.text(translate('settings.btn-add-time'), 'digest:add').row();
+    keyboard.text(translate('btn-add-time'), 'digest:add').row();
   }
 
   // Clear all if there are times
   if (currentTimes.length > 0) {
-    keyboard.text(translate('settings.btn-clear-all'), 'digest:clear').row();
+    keyboard.text(translate('btn-clear-all'), 'digest:clear').row();
   }
 
-  keyboard.text(translate('settings.btn-back'), 'action:settings');
+  keyboard.text(translate('btn-back'), 'action:settings');
 
   return keyboard;
 }
@@ -124,11 +124,11 @@ export function createDigestTimesKeyboard(currentTimes: string[], t?: TranslateF
 export function createResetConfirmKeyboard(t?: TranslateFn): InlineKeyboard {
   const translate = t || ((key: string) => key);
   return new InlineKeyboard()
-    .text(translate('settings.reset-confirm-step1'), 'reset:confirm')
+    .text(translate('reset-confirm-step1'), 'reset:confirm')
     .row()
-    .text(translate('settings.reset-confirm-step2'), 'reset:execute')
+    .text(translate('reset-confirm-step2'), 'reset:execute')
     .row()
-    .text(translate('settings.btn-cancel'), 'action:settings');
+    .text(translate('btn-cancel'), 'action:settings');
 }
 
 /**
@@ -144,7 +144,7 @@ export function createLanguageKeyboard(currentLanguage: string, t?: TranslateFn)
 
   keyboard.text(enLabel, 'language:en').row().text(ruLabel, 'language:ru').row();
 
-  keyboard.text(translate('settings.btn-back'), 'action:settings');
+  keyboard.text(translate('btn-back'), 'action:settings');
 
   return keyboard;
 }
@@ -158,6 +158,6 @@ export function createSettingsConfirmKeyboard(
 ): InlineKeyboard {
   const translate = t || ((key: string) => key);
   return new InlineKeyboard()
-    .text(translate('settings.btn-confirm'), confirmCallback)
-    .text(translate('settings.btn-back'), 'action:settings');
+    .text(translate('btn-confirm'), confirmCallback)
+    .text(translate('btn-back'), 'action:settings');
 }

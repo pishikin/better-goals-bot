@@ -8,6 +8,7 @@ import { i18n, languageMiddleware } from './middleware/i18n.js';
 import { languageSelectionConversation } from './conversations/language-selection.js';
 import { onboardingConversation } from './conversations/onboarding.js';
 import { addAreaConversation } from './conversations/add-area.js';
+import { editAreaConversation } from './conversations/edit-area.js';
 import { logProgressConversation } from './conversations/log-progress.js';
 
 // Import handlers
@@ -37,6 +38,7 @@ bot.use(conversations());
 bot.use(createConversation(languageSelectionConversation, 'languageSelection'));
 bot.use(createConversation(onboardingConversation, 'onboarding'));
 bot.use(createConversation(addAreaConversation, 'addArea'));
+bot.use(createConversation(editAreaConversation, 'editArea'));
 bot.use(createConversation(logProgressConversation, 'logProgress'));
 
 // Error handler
@@ -65,26 +67,30 @@ bot.command('progress', async (ctx) => {
 });
 
 bot.command('help', async (ctx) => {
-  await ctx.reply(
-    '📖 *Better Goals Help*\n\n' +
-      '*Commands:*\n' +
-      '/start - Start bot and see your areas\n' +
-      '/areas - Manage focus areas\n' +
-      '/progress - Log daily progress\n' +
-      '/summary - Generate AI analysis prompt\n' +
-      '/settings - Configure reminders\n' +
-      '/help - Show this message\n\n' +
-      '*Philosophy:*\n' +
-      'Less is more. Focus on up to 7 key areas.\n' +
-      'Log daily progress. Build momentum through consistency.',
-    { parse_mode: 'Markdown' }
-  );
+  const t = (key: string) => ctx.t(key);
+
+  const helpText = [
+    t('help-title'),
+    '',
+    t('help-commands'),
+    t('help-start'),
+    t('help-areas'),
+    t('help-progress'),
+    t('help-summary'),
+    t('help-settings'),
+    t('help-help'),
+    '',
+    t('help-philosophy'),
+    t('help-philosophy-text'),
+  ].join('\n');
+
+  await ctx.reply(helpText, { parse_mode: 'Markdown' });
 });
 
 // Callback query handlers - order matters!
 // More specific handlers first, then generic ones
 bot.callbackQuery(/^area:/, handleAreaCallbacks);
-bot.callbackQuery(/^settings:|^timezone:|^time:|^digest:|^reset:/, handleSettingsCallbacks);
+bot.callbackQuery(/^settings:|^language:|^timezone:|^time:|^digest:|^reset:/, handleSettingsCallbacks);
 bot.callbackQuery(/^summary:/, handleSummaryCallbacks);
 bot.callbackQuery(/^action:edit_areas$/, handleEditAreas);
 bot.callbackQuery(/^action:settings$/, handleSettingsCallbacks);

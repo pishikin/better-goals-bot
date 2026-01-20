@@ -14,21 +14,21 @@ export async function handleSummaryCommand(ctx: BotContext): Promise<void> {
   const t: TranslateFn = (key, params) => ctx.t(key, params);
 
   if (!user) {
-    await ctx.reply(t('settings.error-please-start'));
+    await ctx.reply(t('error-please-start'));
     return;
   }
 
   // Show options for time range
-  await ctx.reply(`${t('summary.summary-title')}\n\n${t('summary.summary-period')}`, {
+  await ctx.reply(`${t('summary-title')}\n\n${t('summary-period')}`, {
     parse_mode: 'Markdown',
     reply_markup: new InlineKeyboard()
-      .text(t('summary.summary-7days'), 'summary:7')
-      .text(t('summary.summary-14days'), 'summary:14')
+      .text(t('summary-7days'), 'summary:7')
+      .text(t('summary-14days'), 'summary:14')
       .row()
-      .text(t('summary.summary-30days'), 'summary:30')
-      .text(t('summary.summary-all'), 'summary:all')
+      .text(t('summary-30days'), 'summary:30')
+      .text(t('summary-all'), 'summary:all')
       .row()
-      .text(t('common.btn-back'), 'action:back'),
+      .text(t('btn-back'), 'action:back'),
   });
 }
 
@@ -41,22 +41,22 @@ export async function handleSummaryGeneration(ctx: BotContext, days: number | 'a
   const t: TranslateFn = (key, params) => ctx.t(key, params);
 
   if (!user) {
-    await ctx.answerCallbackQuery(t('settings.error-please-start'));
+    await ctx.answerCallbackQuery(t('error-please-start'));
     return;
   }
 
-  await ctx.answerCallbackQuery(t('summary.summary-generating'));
+  await ctx.answerCallbackQuery(t('summary-generating'));
 
   // Generate the prompt (pass 0 for "all time")
   const daysNum = days === 'all' ? 0 : days;
   const prompt = await generateAnalysisPrompt(user, daysNum);
 
   // Send info message
-  await ctx.editMessageText(t('summary.summary-ready'), {
+  await ctx.editMessageText(t('summary-ready'), {
     parse_mode: 'Markdown',
     reply_markup: new InlineKeyboard()
       .text('🔄', 'action:summary')
-      .text(t('common.btn-back'), 'action:back'),
+      .text(t('btn-back'), 'action:back'),
   });
 
   // Send the actual prompt in a code block for easy copying
@@ -90,7 +90,7 @@ export async function handleSummaryGeneration(ctx: BotContext, days: number | 'a
   }
 
   // Send copy instruction
-  await ctx.reply(t('summary.summary-copy-instruction'));
+  await ctx.reply(t('summary-copy-instruction'));
 }
 
 /**
@@ -112,7 +112,7 @@ export async function handleSummaryCallbacks(ctx: BotContext): Promise<void> {
   const days = parseInt(daysStr, 10);
 
   if (isNaN(days)) {
-    await ctx.answerCallbackQuery(t('common.error-something-wrong'));
+    await ctx.answerCallbackQuery(t('error-something-wrong'));
     return;
   }
 

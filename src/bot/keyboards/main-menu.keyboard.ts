@@ -15,11 +15,11 @@ export function createMainMenuKeyboard(t?: TranslateFn): InlineKeyboard {
   const translate = t || ((key: string) => key);
 
   return new InlineKeyboard()
-    .text(translate('common.btn-log-progress'), 'action:progress')
-    .text(translate('common.btn-add-area'), 'action:add_area')
+    .text(translate('btn-log-progress'), 'action:progress')
+    .text(translate('btn-add-area'), 'action:add_area')
     .row()
-    .text(translate('common.btn-edit'), 'action:edit_areas')
-    .text(translate('common.btn-settings'), 'action:settings');
+    .text(translate('btn-edit'), 'action:edit_areas')
+    .text(translate('btn-settings'), 'action:settings');
 }
 
 /**
@@ -30,7 +30,7 @@ export function createBackKeyboard(
   callbackData: string = 'action:back'
 ): InlineKeyboard {
   const translate = t || ((key: string) => key);
-  return new InlineKeyboard().text(translate('common.btn-back'), callbackData);
+  return new InlineKeyboard().text(translate('btn-back'), callbackData);
 }
 
 /**
@@ -38,7 +38,7 @@ export function createBackKeyboard(
  */
 export function createCancelKeyboard(t?: TranslateFn): InlineKeyboard {
   const translate = t || ((key: string) => key);
-  return new InlineKeyboard().text(translate('common.btn-cancel'), 'action:cancel');
+  return new InlineKeyboard().text(translate('btn-cancel'), 'action:cancel');
 }
 
 /**
@@ -51,8 +51,8 @@ export function createConfirmKeyboard(
 ): InlineKeyboard {
   const translate = t || ((key: string) => key);
   return new InlineKeyboard()
-    .text(translate('common.btn-confirm-delete'), confirmCallback)
-    .text(translate('common.btn-cancel'), cancelCallback);
+    .text(translate('btn-confirm-delete'), confirmCallback)
+    .text(translate('btn-cancel'), cancelCallback);
 }
 
 /**
@@ -64,6 +64,6 @@ export function createDoneKeyboard(
 ): InlineKeyboard {
   const translate = t || ((key: string) => key);
   return new InlineKeyboard()
-    .text(translate('common.btn-done') || '✅ Done', doneCallback)
-    .text(translate('common.btn-cancel'), 'action:cancel');
+    .text(translate('btn-done') || '✅ Done', doneCallback)
+    .text(translate('btn-cancel'), 'action:cancel');
 }

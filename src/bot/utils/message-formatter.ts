@@ -68,7 +68,18 @@ export function formatPinnedMessage(
         ? 'day'
         : 'days';
     lines.push(`🔥 ${days} ${dayWord}`);
+  } else if (lastProgressDate) {
+    // User has progress entries but streak is broken
+    // Show last progress date instead of "No progress logged yet"
+    const lastUpdateText = formatDateTime(lastProgressDate, lang);
+    const lastLabel = isRu ? 'Последнее' : 'Last';
+    lines.push(`${lastLabel}: ${lastUpdateText}`);
+  } else if (stats.totalEntries > 0) {
+    // User has entries but no lastProgressDate (shouldn't happen, but handle gracefully)
+    const hasEntries = isRu ? 'Есть записи прогресса' : 'Progress entries exist';
+    lines.push(hasEntries);
   } else {
+    // Truly no progress entries at all
     const noProgress = isRu
       ? 'Прогресс ещё не записан'
       : 'No progress logged yet';

@@ -32,7 +32,7 @@ export async function addAreaConversation(
   const user = await conversation.external(() => userService.getUserByTelegramId(telegramId));
 
   if (!user) {
-    await ctx.reply(t('settings.error-please-start'));
+    await ctx.reply(t('error-please-start'));
     return;
   }
 
@@ -43,20 +43,20 @@ export async function addAreaConversation(
 
   if (!canAdd) {
     await ctx.reply(
-      `❌ ${t('common.error-max-areas')}`,
+      `❌ ${t('error-max-areas')}`,
       {
         reply_markup: new InlineKeyboard()
-          .text(t('common.btn-edit-areas'), 'action:edit_areas')
-          .text(t('common.btn-back'), 'action:back'),
+          .text(t('btn-edit-areas'), 'action:edit_areas')
+          .text(t('btn-back'), 'action:back'),
       }
     );
     return;
   }
 
   // Step 1: Ask for title
-  await ctx.reply(t('areas.add-area-start') + '\n\n' + t('areas.add-area-title-prompt'), {
+  await ctx.reply(t('add-area-start') + '\n\n' + t('add-area-title-prompt'), {
     parse_mode: 'Markdown',
-    reply_markup: new InlineKeyboard().text(t('common.btn-cancel'), 'action:cancel'),
+    reply_markup: new InlineKeyboard().text(t('btn-cancel'), 'action:cancel'),
   });
 
   // Wait for title
@@ -66,8 +66,8 @@ export async function addAreaConversation(
     const response = await conversation.waitFor([':text', 'callback_query:data']);
 
     if (response.callbackQuery?.data === 'action:cancel') {
-      await response.answerCallbackQuery(t('common.msg-cancelled'));
-      await ctx.reply(`❌ ${t('common.msg-cancelled')}`);
+      await response.answerCallbackQuery(t('msg-cancelled'));
+      await ctx.reply(`❌ ${t('msg-cancelled')}`);
       return;
     }
 
@@ -76,18 +76,18 @@ export async function addAreaConversation(
       if (validation.success) {
         title = validation.data;
       } else {
-        await ctx.reply(`⚠️ ${t('common.error-area-title-too-long')}`);
+        await ctx.reply(`⚠️ ${t('error-area-title-too-long')}`);
       }
     }
   }
 
   // Step 2: Ask for description (optional)
-  await ctx.reply(t('areas.add-area-body-prompt'), {
+  await ctx.reply(t('add-area-body-prompt'), {
     parse_mode: 'Markdown',
     reply_markup: new InlineKeyboard()
-      .text(t('common.btn-skip'), 'input:skip_body')
+      .text(t('btn-skip'), 'input:skip_body')
       .row()
-      .text(t('common.btn-cancel'), 'action:cancel'),
+      .text(t('btn-cancel'), 'action:cancel'),
   });
 
   let body: string | undefined;
@@ -97,8 +97,8 @@ export async function addAreaConversation(
     const response = await conversation.waitFor([':text', 'callback_query:data']);
 
     if (response.callbackQuery?.data === 'action:cancel') {
-      await response.answerCallbackQuery(t('common.msg-cancelled'));
-      await ctx.reply(`❌ ${t('common.msg-cancelled')}`);
+      await response.answerCallbackQuery(t('msg-cancelled'));
+      await ctx.reply(`❌ ${t('msg-cancelled')}`);
       return;
     }
 
@@ -111,18 +111,18 @@ export async function addAreaConversation(
         body = validation.data;
         bodyDone = true;
       } else {
-        await ctx.reply(`⚠️ ${t('common.error-area-body-too-long')}`);
+        await ctx.reply(`⚠️ ${t('error-area-body-too-long')}`);
       }
     }
   }
 
   // Step 3: Ask for emoji (optional)
-  await ctx.reply(t('areas.add-area-emoji-prompt'), {
+  await ctx.reply(t('add-area-emoji-prompt'), {
     parse_mode: 'Markdown',
     reply_markup: new InlineKeyboard()
-      .text(t('common.btn-skip'), 'input:skip_emoji')
+      .text(t('btn-skip'), 'input:skip_emoji')
       .row()
-      .text(t('common.btn-cancel'), 'action:cancel'),
+      .text(t('btn-cancel'), 'action:cancel'),
   });
 
   let emoji: string | undefined;
@@ -132,8 +132,8 @@ export async function addAreaConversation(
     const response = await conversation.waitFor([':text', 'callback_query:data']);
 
     if (response.callbackQuery?.data === 'action:cancel') {
-      await response.answerCallbackQuery(t('common.msg-cancelled'));
-      await ctx.reply(`❌ ${t('common.msg-cancelled')}`);
+      await response.answerCallbackQuery(t('msg-cancelled'));
+      await ctx.reply(`❌ ${t('msg-cancelled')}`);
       return;
     }
 
@@ -146,7 +146,7 @@ export async function addAreaConversation(
         emoji = validation.data;
         emojiDone = true;
       } else {
-        await ctx.reply(`⚠️ ${t('common.btn-skip')}`);
+        await ctx.reply(`⚠️ ${t('btn-skip')}`);
       }
     }
   }
@@ -159,7 +159,7 @@ export async function addAreaConversation(
   // Show confirmation
   const areaEmoji = area.emoji ?? '✓';
   await ctx.reply(
-    t('areas.add-area-success', { emoji: areaEmoji, title: area.title, body: area.body ?? 'none' }),
+    t('add-area-success', { emoji: areaEmoji, title: area.title, body: area.body ?? 'none' }),
     { parse_mode: 'Markdown' }
   );
 

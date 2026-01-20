@@ -41,3 +41,10 @@ prisma/*.db-journal
 # ==============================================
 .claude/
 .cursor/
+# But keep deploy scripts (excluding credentials)
+!.claude/deploy/
+.claude/deploy/deploy-bot.sh
+.claude/deploy/sync-db.sh
+
+# Backups
+backups/

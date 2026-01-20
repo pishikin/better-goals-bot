@@ -9,14 +9,13 @@ export interface SessionData {
   userId?: string;
 }
 
+// Base context without conversations to avoid circular dependency
+type MyBaseContext = Context & I18nFlavor & SessionFlavor<SessionData>;
+
 // Bot context type with session, conversation and i18n support
-export type BotContext = Context &
-  SessionFlavor<SessionData> &
-  ConversationFlavor<Context & SessionFlavor<SessionData>> &
-  I18nFlavor;
+export type BotContext = MyBaseContext & ConversationFlavor<MyBaseContext>;
 
 // Conversation type for Grammy conversations plugin
-// Note: Conversation<OC, C> where OC = outer context (same as C for most cases)
 export type BotConversation = Conversation<BotContext, BotContext>;
 
 // Re-export Prisma types for convenience
