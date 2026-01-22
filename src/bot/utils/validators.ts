@@ -179,3 +179,68 @@ export function validateTimezone(input: string): ValidationResult<string> {
 export function validateTime(input: string): ValidationResult<string> {
   return validate(timeSchema, input);
 }
+
+/**
+ * Schema for date in DD.MM.YY format.
+ * Validates that date is in the past and not more than 7 days ago.
+ */
+export const pastDateSchema = z
+  .string()
+  .regex(/^(\d{2})\.(\d{2})\.(\d{2})$/, 'Date must be in DD.MM.YY format (e.g., 01.02.26)')
+  .transform((str, ctx) => {
+    const parts = str.split('.');
+    const day = parseInt(parts[0] ?? '0', 10);
+    const month = parseInt(parts[1] ?? '0', 10) - 1; // Month is 0-indexed
+    const year = parseInt(parts[2] ?? '0', 10);
+
+    // Convert 2-digit year to full year (assuming 2000-2099)
+    const fullYear = year < 50 ? 2000 + year : 1900 + year;
+
+    const date = new Date(fullYear, month, day);
+    
+    // Validate date is valid
+    if (
+      date.getDate() !== day ||
+      date.getMonth() !== month ||
+      date.getFullYear() !== fullYear
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Invalid date',
+      });
+      return z.NEVER;
+    }
+
+    return date;
+  })
+  .refine(
+    (date) => {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const selectedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      
+      // Date must be in the past (not today or future)
+      return selectedDate < today;
+    },
+    { message: 'Date must be in the past' }
+  )
+  .refine(
+    (date) => {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const selectedDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const daysDiff = Math.floor((today.getTime() - selectedDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      // Date must be within last 7 days
+      return daysDiff <= 7;
+    },
+    { message: 'Date must be within the last 7 days' }
+  );
+
+/**
+ * Validates date string in DD.MM.YY format.
+ * Returns validated Date object if valid.
+ */
+export function validatePastDate(input: string): ValidationResult<Date> {
+  return validate(pastDateSchema, input);
+}

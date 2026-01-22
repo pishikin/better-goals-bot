@@ -1,4 +1,4 @@
-import type { BotContext, BotConversation } from '../../types/index.js';
+import type { BotContext, BotConversation, Language } from '../../types/index.js';
 import type { Area } from '@prisma/client';
 import * as userService from '../../services/user.service.js';
 import * as areasService from '../../services/areas.service.js';
@@ -8,6 +8,8 @@ import { validateProgressContent } from '../utils/validators.js';
 import { formatPinnedMessage } from '../utils/message-formatter.js';
 import { createMainMenuKeyboard } from '../keyboards/main-menu.keyboard.js';
 import { createProgressControlKeyboard, createAllLoggedKeyboard } from '../keyboards/progress.keyboard.js';
+import { formatDate } from '../utils/date-formatter.js';
+import { i18n } from '../../locales/index.js';
 
 type TranslateFn = (key: string, params?: Record<string, any>) => string;
 
@@ -21,7 +23,7 @@ interface ProgressSessionEntry {
 
 /**
  * Log progress conversation flow.
- * Iterates through areas without today's progress and collects entries:
+ * Iterates through areas without progress for selected date and collects entries:
  * 1. Show areas one by one
  * 2. Wait for text input or skip
  * 3. Allow cancel all to abort
@@ -30,36 +32,41 @@ interface ProgressSessionEntry {
  */
 export async function logProgressConversation(
   conversation: BotConversation,
-  ctx: BotContext
+  ctx: BotContext,
+  selectedDate?: Date
 ): Promise<void> {
   const telegramId = BigInt(ctx.from?.id ?? 0);
-  const t: TranslateFn = (key, params) => ctx.t(key, params);
 
-  // Get user
+  // Get user first
   const user = await conversation.external(() => userService.getUserByTelegramId(telegramId));
 
   if (!user) {
-    await ctx.reply(t('error-please-start'));
+    await ctx.reply(i18n.t('en', 'error-please-start'));
     return;
   }
 
-  const language = user.language || 'en';
+  // Get user's language
+  const language: Language = (user.language as Language) || 'en';
+  const t: TranslateFn = (key, params) => i18n.t(language, key, params);
 
-  // Get areas without today's progress
+  // Get the session date (either selected date or today)
+  const sessionDate = selectedDate || progressService.getTodayInTimezone(user.timezone);
+
+  // Get areas without progress for the selected date
   const areasToLog = await conversation.external(() =>
-    progressService.getAreasWithoutTodayProgress(user.id, user.timezone)
+    progressService.getAreasWithoutProgressForDate(user.id, sessionDate)
   );
 
   if (areasToLog.length === 0) {
-    await ctx.reply(t('progress-all-caught-up'), {
+    const dateLabel = selectedDate 
+      ? formatDate(sessionDate, language)
+      : t('progress-today');
+    await ctx.reply(t('progress-all-caught-up-for-date', { date: dateLabel }), {
       parse_mode: 'Markdown',
       reply_markup: createAllLoggedKeyboard(t),
     });
     return;
   }
-
-  // Get the session start date (used for all entries)
-  const sessionDate = progressService.getTodayInTimezone(user.timezone);
 
   // Collect entries during the session
   const sessionEntries: ProgressSessionEntry[] = [];
@@ -138,7 +145,13 @@ export async function logProgressConversation(
   const stats = await conversation.external(() => getUserStatistics(user.id, user.timezone));
 
   // Show summary
-  const summaryText = t('progress-summary', { count: sessionEntries.length });
+  const dateLabel = selectedDate 
+    ? formatDate(sessionDate, language)
+    : t('progress-today');
+  const summaryText = t('progress-summary-for-date', { 
+    count: sessionEntries.length,
+    date: dateLabel 
+  });
   const streakText = stats.currentStreak > 0 ? '\n\n' + t('progress-streak', { days: stats.currentStreak }) : '';
   await ctx.reply(summaryText + streakText, { parse_mode: 'Markdown' });
 

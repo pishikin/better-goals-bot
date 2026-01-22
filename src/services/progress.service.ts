@@ -65,16 +65,25 @@ export async function getAreasWithoutTodayProgress(
   timezone: string
 ): Promise<Area[]> {
   const today = getTodayInTimezone(timezone);
+  return getAreasWithoutProgressForDate(userId, today);
+}
 
+/**
+ * Get areas that don't have a progress entry for a specific date.
+ */
+export async function getAreasWithoutProgressForDate(
+  userId: string,
+  date: Date
+): Promise<Area[]> {
   const allAreas = await prisma.area.findMany({
     where: { userId },
     orderBy: { position: 'asc' },
   });
 
-  const todayEntries = await getDayProgress(userId, today);
+  const dayEntries = await getDayProgress(userId, date);
   // Filter out check-in entries (areaId is null)
   const loggedAreaIds = new Set(
-    todayEntries.filter((e) => e.areaId !== null).map((e) => e.areaId)
+    dayEntries.filter((e) => e.areaId !== null).map((e) => e.areaId)
   );
 
   return allAreas.filter((area) => !loggedAreaIds.has(area.id));

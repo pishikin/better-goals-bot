@@ -1,4 +1,4 @@
-import type { BotContext, BotConversation } from '../../types/index.js';
+import type { BotContext, BotConversation, Language } from '../../types/index.js';
 import * as userService from '../../services/user.service.js';
 import * as areasService from '../../services/areas.service.js';
 import { getUserStatistics, getLastProgressDate } from '../../services/statistics.service.js';
@@ -9,8 +9,8 @@ import {
 import { formatPinnedMessage } from '../utils/message-formatter.js';
 import { createMainMenuKeyboard } from '../keyboards/main-menu.keyboard.js';
 import { createEditFieldKeyboard } from '../keyboards/areas.keyboard.js';
-import { i18n } from '../middleware/i18n.js';
 import { InlineKeyboard } from 'grammy';
+import { i18n } from '../../locales/index.js';
 
 type TranslateFn = (key: string, params?: Record<string, any>) => string;
 
@@ -33,11 +33,11 @@ export async function editAreaConversation(
   const user = await conversation.external(() => userService.getUserByTelegramId(telegramId));
 
   if (!user) {
-    await ctx.reply('Please start the bot first with /start');
+    await ctx.reply(i18n.t('en', 'error-please-start'));
     return;
   }
 
-  const language = user.language || 'en';
+  const language: Language = (user.language as Language) || 'en';
   const t: TranslateFn = (key, params) => i18n.t(language, key, params);
 
   // Get areaId from callback data
