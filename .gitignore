@@ -39,12 +39,20 @@ prisma/*.db-journal
 # ==============================================
 # Claude Code / Cursor - AI documentation
 # ==============================================
-.claude/
-.cursor/
-# But keep deploy scripts (excluding credentials)
+# Ignore all .claude/ except deploy/
+.claude/*
 !.claude/deploy/
+# But ignore deploy scripts/files with credentials
 .claude/deploy/deploy-bot.sh
-.claude/deploy/sync-db.sh
+.claude/deploy/backup-db.sh
+.claude/deploy/check-db.sh
+.claude/deploy/DEPLOY_CREDENTIALS.md
+.claude/deploy/deploy.sh
+
+.cursor/
 
 # Backups
 backups/
+
+# Local database (prisma/data/ should never be uploaded to server)
+prisma/data/
