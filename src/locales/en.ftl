@@ -88,6 +88,9 @@ btn-done-continue = ✅ Done, continue
 btn-edit-title = 📝 Title
 btn-edit-description = 📄 Description
 btn-edit-emoji = 😀 Emoji
+btn-today = 📅 Today
+btn-past-period = 📆 Past Period
+btn-custom-date = 📝 Enter Date
 
 # Validation errors
 error-area-title-required = Area title is required
@@ -98,6 +101,7 @@ error-max-areas = You have reached the maximum limit of 7 focus areas
 error-invalid-time = Invalid time format. Please use HH:mm (e.g., 09:00)
 error-invalid-timezone = Invalid timezone
 error-invalid-emoji = Invalid emoji. Please send a single emoji character
+error-invalid-date = Date is invalid or too far. Use DD.MM.YY format (e.g., 01.02.26). Date must be in the past and not more than a week ago.
 error-something-wrong = Something went wrong. Please try again
 
 # System messages
@@ -227,13 +231,14 @@ progress-start = Let's log your progress! 📝
 progress-no-areas = You don't have any focus areas yet. Add some first!
 
 # Progress form for each area
-progress-area-prompt = 
-  { $current }/{ $total } { $emoji } { $title }{ $body ->
-    [none] {""}
-   *[other] {"\n"}→ { $body }
-  }
-  
-  What did you accomplish?
+progress-area-prompt =
+    { $current }/{ $total } { $emoji } *{ $title }*
+    { $body ->
+        [none] {""}
+       *[other] → { $body }
+    }
+
+    What did you accomplish?
 
 progress-skipped = Skipped
 progress-all-done = All areas completed! ✅
@@ -246,6 +251,13 @@ progress-summary =
     [one] entry
    *[other] entries
   } saved for today.
+progress-summary-for-date = 
+  Progress logged! 🎉
+  
+  { $count } { $count ->
+    [one] entry
+   *[other] entries
+  } saved for { $date }.
 
 progress-streak = 🔥 { $days } { $days ->
     [one] day
@@ -268,10 +280,30 @@ pinned-no-progress = No progress logged yet
 progress-all-caught-up = ✅ *All caught up!*
 
   You've already logged progress for all areas today.
+progress-all-caught-up-for-date = ✅ *All caught up!*
+
+  You've already logged progress for all areas on { $date }.
 progress-cancelled = ❌ *Progress logging cancelled*
 
   No entries were saved from this session.
 progress-skipped-area = ⏭ Skipped { $emoji } { $title }
+progress-today = today
+progress-date-selection = 
+  📅 *Select date for logging progress*
+
+  Which date would you like to log progress for?
+progress-select-past-date = 
+  📆 *Select a past date*
+
+  Choose one of the last three days or enter your own date in DD.MM.YY format (e.g., 01.02.26).
+progress-custom-date-prompt = 
+  📝 *Enter date*
+
+  Enter date in DD.MM.YY format (e.g., 01.02.26).
+
+  Date must be:
+  • In the past (not today or future)
+  • Not more than a week ago
 # Scheduler messages (digests and reminders)
 
 # Morning digest

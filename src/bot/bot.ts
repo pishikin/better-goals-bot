@@ -10,6 +10,7 @@ import { onboardingConversation } from './conversations/onboarding.js';
 import { addAreaConversation } from './conversations/add-area.js';
 import { editAreaConversation } from './conversations/edit-area.js';
 import { logProgressConversation } from './conversations/log-progress.js';
+import { progressDateSelectionConversation } from './conversations/progress-date-selection.js';
 
 // Import handlers
 import { handleStart, handleMainMenuActions } from './handlers/start.handler.js';
@@ -40,6 +41,7 @@ bot.use(createConversation(onboardingConversation, 'onboarding'));
 bot.use(createConversation(addAreaConversation, 'addArea'));
 bot.use(createConversation(editAreaConversation, 'editArea'));
 bot.use(createConversation(logProgressConversation, 'logProgress'));
+bot.use(createConversation(progressDateSelectionConversation, 'progressDateSelection'));
 
 // Error handler
 bot.catch((err) => {
@@ -63,7 +65,7 @@ bot.command('settings', handleSettingsCommand);
 bot.command('summary', handleSummaryCommand);
 
 bot.command('progress', async (ctx) => {
-  await ctx.conversation.enter('logProgress');
+  await ctx.conversation.enter('progressDateSelection');
 });
 
 bot.command('help', async (ctx) => {

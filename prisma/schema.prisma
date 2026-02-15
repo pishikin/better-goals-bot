@@ -5,6 +5,10 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// IMPORTANT: Prisma resolves relative DATABASE_URL paths from THIS FILE's location!
+// For production, always use ABSOLUTE path in .env:
+//   DATABASE_URL="file:/var/app/goals-bot/data/app.db"
+// NOT relative path like "file:./data/app.db" which would resolve to prisma/data/app.db
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")

@@ -56,7 +56,7 @@ export async function handleMainMenuActions(ctx: BotContext): Promise<void> {
 
   switch (action) {
     case 'action:progress':
-      await ctx.conversation.enter('logProgress');
+      await ctx.conversation.enter('progressDateSelection');
       break;
 
     case 'action:add_area':
