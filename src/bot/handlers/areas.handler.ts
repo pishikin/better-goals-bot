@@ -1,15 +1,13 @@
 import type { BotContext } from '../../types/index.js';
 import * as userService from '../../services/user.service.js';
 import * as areasService from '../../services/areas.service.js';
-import { getUserStatistics, getLastProgressDate } from '../../services/statistics.service.js';
-import { formatPinnedMessage } from '../utils/message-formatter.js';
 import {
   createAreasListKeyboard,
   createAreaActionsKeyboard,
   createDeleteConfirmKeyboard,
   createAreasOverviewKeyboard,
 } from '../keyboards/areas.keyboard.js';
-import { createMainMenuKeyboard } from '../keyboards/main-menu.keyboard.js';
+import { syncPinnedPlanMessage } from '../utils/pinned-plan.js';
 
 type TranslateFn = (key: string, params?: Record<string, any>) => string;
 
@@ -219,20 +217,10 @@ async function updatePinnedMessage(
   pinnedMessageId: bigint | null,
   language: string = 'en'
 ): Promise<void> {
-  if (!pinnedMessageId) return;
-
-  const areas = await areasService.getUserAreas(userId);
-  const stats = await getUserStatistics(userId, timezone);
-  const lastProgress = await getLastProgressDate(userId);
-  const t = (key: string, params?: Record<string, any>) => ctx.t(key, params);
-
-  const messageText = formatPinnedMessage(areas, stats, lastProgress, timezone, language);
-
-  try {
-    await ctx.api.editMessageText(ctx.chat?.id ?? 0, Number(pinnedMessageId), messageText, {
-      reply_markup: createMainMenuKeyboard(t),
-    });
-  } catch {
-    // Edit might fail, that's okay
-  }
+  await syncPinnedPlanMessage(ctx, {
+    userId,
+    timezone,
+    language,
+    pinnedMessageId,
+  });
 }

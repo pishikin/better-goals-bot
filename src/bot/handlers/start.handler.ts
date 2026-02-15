@@ -1,9 +1,7 @@
 import type { BotContext } from '../../types/index.js';
 import * as userService from '../../services/user.service.js';
-import * as areasService from '../../services/areas.service.js';
-import { getUserStatistics, getLastProgressDate } from '../../services/statistics.service.js';
-import { formatPinnedMessage } from '../utils/message-formatter.js';
 import { createMainMenuKeyboard } from '../keyboards/main-menu.keyboard.js';
+import { buildPinnedPlanMessage, syncPinnedPlanMessage } from '../utils/pinned-plan.js';
 
 /**
  * Handle /start command.
@@ -26,21 +24,33 @@ export async function handleStart(ctx: BotContext): Promise<void> {
     return;
   }
 
-  // Existing user - show main menu
-  const areas = await areasService.getUserAreas(user.id);
-  const stats = await getUserStatistics(user.id, user.timezone);
-  const lastProgress = await getLastProgressDate(user.id);
+  // One-time notice about the new planning model for existing users.
+  if (!user.newModelOnboardingShownAt) {
+    const isRu = user.language === 'ru';
+    await ctx.reply(
+      isRu
+        ? '🆕 Обновление Better Goals:\n\nТеперь основной цикл: план на день → напоминания → вечерняя подбивка.\nСтарые данные по направлениям и прогрессу сохранены.'
+        : '🆕 Better Goals update:\n\nThe main flow is now: daily plan → reminders → evening review.\nYour existing areas and progress history are preserved.'
+    );
+    await userService.markNewModelOnboardingShown(user.id);
+  }
 
-  const messageText = formatPinnedMessage(
-    areas,
-    stats,
-    lastProgress,
+  // Existing user - show main menu with current plan snapshot
+  const messageText = await buildPinnedPlanMessage(
+    user.id,
     user.timezone,
     user.language
   );
 
   await ctx.reply(messageText, {
     reply_markup: createMainMenuKeyboard(ctx.t),
+  });
+
+  await syncPinnedPlanMessage(ctx, {
+    userId: user.id,
+    timezone: user.timezone,
+    language: user.language,
+    pinnedMessageId: user.pinnedMessageId,
   });
 }
 
@@ -56,16 +66,7 @@ export async function handleMainMenuActions(ctx: BotContext): Promise<void> {
 
   switch (action) {
     case 'action:progress':
-      await ctx.conversation.enter('progressDateSelection');
-      break;
-
-    case 'action:add_area':
-      await ctx.conversation.enter('addArea');
-      break;
-
-    case 'action:edit_areas':
-      // Will be handled by areas handler
-      await ctx.reply('Edit areas coming soon...');
+      await ctx.conversation.enter('plan');
       break;
 
     case 'action:settings':

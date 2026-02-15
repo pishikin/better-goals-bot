@@ -50,6 +50,7 @@ prisma/*.db-journal
 .claude/deploy/deploy.sh
 
 .cursor/
+.claude/
 
 # Backups
 backups/

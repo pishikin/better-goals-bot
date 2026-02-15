@@ -67,7 +67,7 @@ error-access-denied = Access denied
 # Common phrases, buttons, errors
 
 # Buttons
-btn-log-progress = 📝 Log Progress
+btn-log-progress = 🗓 Plan Day
 btn-add-area = ➕ Add Area
 btn-edit = ✏️ Edit
 btn-settings = ⚙️ Settings
@@ -329,8 +329,9 @@ reminder-cta = Tap the button below to log your progress:
 settings-title = ⚙️ Settings
 settings-language = 🌍 Language
 settings-timezone = 🌐 Timezone
-settings-digest = 📬 Daily Digest Times
-settings-reminder = ⏰ Progress Reminder
+settings-morning-plan-time = 🌅 Morning Plan Time
+settings-digest = 📬 Day Reminder Times
+settings-reminder = 🌙 Evening Review Time
 
 # Language settings
 language-title = 🌍 Language Settings
@@ -343,36 +344,45 @@ timezone-title = 🌐 Timezone Settings
 timezone-current = Current timezone: { $timezone }
 timezone-updated = Timezone updated to { $timezone }
 
-# Digest settings
-digest-title = 📬 Daily Digest Settings
-digest-current = Current digest times: { $times ->
+# Morning plan settings
+morning-plan-title = 🌅 Morning Plan Time
+morning-plan-current = Current time: { $time ->
+    [none] Not set
+   *[other] { $time }
+  }
+morning-plan-updated = Morning plan time set to { $time }
+
+# Day reminders settings
+digest-title = 📬 Day Reminders
+digest-current = Current reminder times: { $times ->
     [none] Not set
    *[other] { $times }
   }
 digest-add = ➕ Add Time
 digest-remove = 🗑️ Remove Time
-digest-prompt = Enter time for daily digest (HH:mm, e.g., 09:00):
-digest-added = Digest time added: { $time }
-digest-removed = Digest time removed
-digest-max = You already have 3 digest times (maximum)
+digest-prompt = Enter reminder time (HH:mm, e.g., 14:00):
+digest-added = Reminder time added: { $time }
+digest-removed = Reminder time removed
+digest-max = You already have 3 reminder times (maximum)
 
-# Reminder settings
-reminder-title = ⏰ Progress Reminder Settings
-reminder-current = Current reminder time: { $time ->
+# Evening review settings
+reminder-title = 🌙 Evening Review Time
+reminder-current = Current evening review time: { $time ->
     [none] Not set
    *[other] { $time }
   }
 reminder-set-btn = ⏰ Set Time
 reminder-remove-btn = 🗑️ Remove
-reminder-prompt = Enter time for progress reminder (HH:mm, e.g., 20:00):
-reminder-updated = Progress reminder set to { $time }
-reminder-removed = Progress reminder removed
+reminder-prompt = Enter evening review time (HH:mm, e.g., 21:00):
+reminder-updated = Evening review time set to { $time }
+reminder-removed = Evening review disabled
 
 # Keyboard buttons
 btn-language = 🌐 Language
 btn-timezone = 🌍 Timezone
-btn-digest-reminders = 📋 Digest Reminders
-btn-progress-reminder = 📝 Progress Reminder
+btn-morning-plan-time = 🌅 Morning Plan
+btn-digest-reminders = 📋 Day Reminders
+btn-progress-reminder = 🌙 Evening Review
 btn-reset-all = 🗑 Reset All Data
 btn-back = ← Back
 btn-other-custom = 📝 Other (type manually)
@@ -398,7 +408,7 @@ timezone-custom-prompt = Enter your timezone (e.g., America/New_York):
 timezone-invalid = Invalid timezone. Please try again.
 
 # Digest times management
-digest-cleared = All digest times cleared
+digest-cleared = Reminder times reset to default
 
 # Error messages
 error-please-start = Please start the bot first with /start

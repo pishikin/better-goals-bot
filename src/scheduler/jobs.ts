@@ -1,159 +1,275 @@
 import cron from 'node-cron';
+import { InlineKeyboard } from 'grammy';
 import { toZonedTime } from 'date-fns-tz';
 import { bot } from '../bot/bot.js';
 import * as userService from '../services/user.service.js';
-import { generateDigest } from '../services/digest.service.js';
-import { shouldSendProgressReminder, generateProgressReminder } from '../services/reminder.service.js';
+import * as planService from '../services/daily-plan.service.js';
+import { MAX_TASKS_PER_DAY, TASK_STATUSES } from '../services/task.service.js';
+
+type NotificationType =
+  | 'morning_plan'
+  | 'daily_reminder'
+  | 'evening_review'
+  | 'morning_review_fallback';
 
 /**
- * Scheduler module for periodic tasks.
- * Handles digest notifications and progress reminders.
- */
-
-/**
- * Track sent notifications to prevent duplicates within the same hour.
- * Key format: "userId:type:hour"
+ * Dedup map: userId:type:slot -> timestamp
  */
 const sentNotifications = new Map<string, number>();
 
-/**
- * Check if notification was already sent this hour.
- */
-function wasSentThisHour(
-  userId: string,
-  type: 'digest' | 'reminder',
-  currentHour: number
-): boolean {
-  const key = `${userId}:${type}:${currentHour}`;
-  return sentNotifications.has(key);
+function buildDateKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function parseTime(time: string): { hour: number; minute: number } | null {
+  const parts = time.split(':');
+  if (parts.length !== 2) return null;
+
+  const hour = Number(parts[0]);
+  const minute = Number(parts[1]);
+
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) return null;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+
+  return { hour, minute };
 }
 
 /**
- * Mark notification as sent for this hour.
+ * True if local time is inside [target, target + 6 min) window.
+ * +6 keeps reliability if job executes at +5 minute boundary after restart jitter.
  */
-function markAsSent(
-  userId: string,
-  type: 'digest' | 'reminder',
-  currentHour: number
-): void {
-  const key = `${userId}:${type}:${currentHour}`;
+function isTimeMatch(zonedNow: Date, target: string): boolean {
+  const parsed = parseTime(target);
+  if (!parsed) return false;
+
+  const currentMinutes = zonedNow.getHours() * 60 + zonedNow.getMinutes();
+  const targetMinutes = parsed.hour * 60 + parsed.minute;
+
+  return currentMinutes >= targetMinutes && currentMinutes < targetMinutes + 6;
+}
+
+function wasSent(userId: string, type: NotificationType, slot: string): boolean {
+  const key = `${userId}:${type}:${slot}`;
+  return sentNotifications.has(key);
+}
+
+function markSent(userId: string, type: NotificationType, slot: string): void {
+  const key = `${userId}:${type}:${slot}`;
   sentNotifications.set(key, Date.now());
 
-  // Clean up old entries (older than 2 hours)
-  const twoHoursAgo = Date.now() - 2 * 60 * 60 * 1000;
+  const cutoff = Date.now() - 48 * 60 * 60 * 1000;
   for (const [k, timestamp] of sentNotifications.entries()) {
-    if (timestamp < twoHoursAgo) {
+    if (timestamp < cutoff) {
       sentNotifications.delete(k);
     }
   }
 }
 
-/**
- * Send a message to a user.
- */
 async function sendMessage(
   telegramId: bigint,
   message: string,
-  type: 'digest' | 'reminder'
+  keyboard?: InlineKeyboard
 ): Promise<void> {
   try {
-    await bot.api.sendMessage(Number(telegramId), message, { parse_mode: 'Markdown' });
-    console.log(`${type} sent to user ${telegramId}`);
+    await bot.api.sendMessage(Number(telegramId), message, {
+      reply_markup: keyboard,
+    });
   } catch (error) {
-    console.error(`Failed to send ${type} to ${telegramId}:`, error);
+    console.error(`Failed to send scheduled message to ${telegramId}:`, error);
   }
 }
 
-/**
- * Process digest notifications for all users.
- * Digests are always sent at configured times.
- */
-async function processDigests(): Promise<void> {
-  console.log('Processing digests...');
+async function processMorningPlanPrompts(): Promise<void> {
+  const users = await userService.getOnboardedUsers();
 
-  try {
-    const users = await userService.getUsersForDigest();
+  for (const user of users) {
+    try {
+      if (!user.morningPlanTime) continue;
 
-    for (const user of users) {
-      const digestTimes = userService.parseDigestTimes(user.digestTimes);
-      if (digestTimes.length === 0) continue;
+      const zonedNow = toZonedTime(new Date(), user.timezone);
+      if (!isTimeMatch(zonedNow, user.morningPlanTime)) continue;
 
-      // Get current time in user's timezone
-      const now = new Date();
-      const zonedNow = toZonedTime(now, user.timezone);
-      const currentHour = zonedNow.getHours();
-      const currentMinute = zonedNow.getMinutes();
+      const slot = `${buildDateKey(zonedNow)}:${user.morningPlanTime}`;
+      if (wasSent(user.id, 'morning_plan', slot)) continue;
 
-      // Check if current time matches any of the digest times
-      for (const digestTime of digestTimes) {
-        const [digestHour, digestMinute] = digestTime.split(':').map(Number);
-
-        // Send if current time is within 5 minutes of the configured time
-        // This accounts for cron execution delays
-        if (
-          currentHour === digestHour &&
-          currentMinute >= digestMinute &&
-          currentMinute < digestMinute + 5
-        ) {
-          // Check if already sent this hour
-          if (!wasSentThisHour(user.id, 'digest', currentHour)) {
-            const digest = await generateDigest(user);
-            await sendMessage(user.telegramId, digest, 'digest');
-            markAsSent(user.id, 'digest', currentHour);
-          }
-          break; // Only send once per hour even if multiple times configured
-        }
-      }
-    }
-  } catch (error) {
-    console.error('Error processing digests:', error);
-  }
-}
-
-/**
- * Process progress reminders for all users.
- * Only sends if user hasn't logged progress today.
- */
-async function processProgressReminders(): Promise<void> {
-  console.log('Processing progress reminders...');
-
-  try {
-    const users = await userService.getUsersForProgressReminder();
-
-    for (const user of users) {
-      if (!user.progressReminderTime) continue;
-
-      // Get current time in user's timezone
-      const now = new Date();
-      const zonedNow = toZonedTime(now, user.timezone);
-      const currentHour = zonedNow.getHours();
-      const currentMinute = zonedNow.getMinutes();
-
-      // Parse user's reminder time
-      const [reminderHour, reminderMinute] = user.progressReminderTime.split(':').map(Number);
-
-      // Send if current time is within 5 minutes of the configured time
-      // This accounts for cron execution delays
+      const todayPlan = await planService.getTodayPlan(user.id, user.timezone);
       if (
-        currentHour === reminderHour &&
-        currentMinute >= reminderMinute &&
-        currentMinute < reminderMinute + 5
+        todayPlan &&
+        todayPlan.status !== planService.PLAN_STATUSES.DRAFT
       ) {
-        // Check if already sent this hour
-        if (!wasSentThisHour(user.id, 'reminder', currentHour)) {
-          // Only send if user hasn't logged progress today
-          const shouldSend = await shouldSendProgressReminder(user);
+        markSent(user.id, 'morning_plan', slot);
+        continue;
+      }
 
-          if (shouldSend) {
-            const reminder = await generateProgressReminder(user);
-            await sendMessage(user.telegramId, reminder, 'reminder');
-            markAsSent(user.id, 'reminder', currentHour);
-          }
+      // Morning fallback: if yesterday review was skipped, remind first.
+      const yesterdayPlan = await planService.getYesterdayPlan(
+        user.id,
+        user.timezone
+      );
+      if (
+        yesterdayPlan &&
+        yesterdayPlan.status !== planService.PLAN_STATUSES.REVIEWED &&
+        yesterdayPlan.status !== planService.PLAN_STATUSES.DRAFT
+      ) {
+        if (!wasSent(user.id, 'morning_review_fallback', slot)) {
+          const fallbackMsg =
+            user.language === 'ru'
+              ? 'Вчерашняя подбивка не завершена. Хочешь быстро подвести итоги вчерашнего дня?'
+              : "Yesterday's review was missed. Do you want to quickly review yesterday now?";
+
+          await sendMessage(
+            user.telegramId,
+            fallbackMsg,
+            new InlineKeyboard().text(
+              user.language === 'ru'
+                ? '🌙 Подбить вчера'
+                : '🌙 Review yesterday',
+              'review:start:yesterday'
+            )
+          );
+          markSent(user.id, 'morning_review_fallback', slot);
         }
       }
+
+      const morningMsg =
+        user.language === 'ru'
+          ? `☀️ Доброе утро! Давай составим план на сегодня (до ${MAX_TASKS_PER_DAY} задач).`
+          : `☀️ Good morning! Let's create today's plan (up to ${MAX_TASKS_PER_DAY} tasks).`;
+
+      await sendMessage(
+        user.telegramId,
+        morningMsg,
+        new InlineKeyboard().text(
+          user.language === 'ru' ? '🗓 Составить план' : '🗓 Plan today',
+          'plan:start'
+        )
+      );
+
+      markSent(user.id, 'morning_plan', slot);
+    } catch (error) {
+      console.error(`Morning reminder failed for user ${user.id}:`, error);
     }
-  } catch (error) {
-    console.error('Error processing progress reminders:', error);
+  }
+}
+
+async function processDailyTaskReminders(): Promise<void> {
+  const users = await userService.getOnboardedUsers();
+
+  for (const user of users) {
+    try {
+      const reminderTimes = userService.getUserDailyReminderTimes(user);
+      if (reminderTimes.length === 0) continue;
+
+      const zonedNow = toZonedTime(new Date(), user.timezone);
+      const dateKey = buildDateKey(zonedNow);
+
+      for (const reminderTime of reminderTimes) {
+        if (!isTimeMatch(zonedNow, reminderTime)) continue;
+
+        const slot = `${dateKey}:${reminderTime}`;
+        if (wasSent(user.id, 'daily_reminder', slot)) continue;
+
+        const todayPlan = await planService.getTodayPlan(user.id, user.timezone);
+        if (
+          !todayPlan ||
+          todayPlan.status === planService.PLAN_STATUSES.DRAFT ||
+          todayPlan.tasks.length === 0
+        ) {
+          markSent(user.id, 'daily_reminder', slot);
+          continue;
+        }
+
+        const remaining = todayPlan.tasks.filter(
+          (task) =>
+            task.status !== TASK_STATUSES.DONE &&
+            task.status !== TASK_STATUSES.SKIPPED
+        );
+
+        const reminderMessage =
+          user.language === 'ru'
+            ? remaining.length > 0
+              ? `📌 Напоминание о задачах: осталось ${remaining.length}.\n\n${remaining
+                  .slice(0, 3)
+                  .map((task, index) => `${index + 1}. ${task.text}`)
+                  .join('\n')}`
+              : '📌 Напоминание: по плану на сегодня уже всё закрыто. Отлично!'
+            : remaining.length > 0
+              ? `📌 Task reminder: ${remaining.length} remaining.\n\n${remaining
+                  .slice(0, 3)
+                  .map((task, index) => `${index + 1}. ${task.text}`)
+                  .join('\n')}`
+              : '📌 Reminder: your plan for today is already completed. Great job!';
+
+        await sendMessage(
+          user.telegramId,
+          reminderMessage,
+          new InlineKeyboard()
+            .text(user.language === 'ru' ? '📋 Открыть план' : '📋 Open plan', 'plan:start')
+            .text(
+              user.language === 'ru' ? '🌙 Подбивка' : '🌙 Review',
+              'review:start:today'
+            )
+        );
+
+        markSent(user.id, 'daily_reminder', slot);
+      }
+    } catch (error) {
+      console.error(`Day reminder failed for user ${user.id}:`, error);
+    }
+  }
+}
+
+async function processEveningReviewPrompts(): Promise<void> {
+  const users = await userService.getOnboardedUsers();
+
+  for (const user of users) {
+    try {
+      if (!user.eveningReviewTime) continue;
+
+      const zonedNow = toZonedTime(new Date(), user.timezone);
+      if (!isTimeMatch(zonedNow, user.eveningReviewTime)) continue;
+
+      const slot = `${buildDateKey(zonedNow)}:${user.eveningReviewTime}`;
+      if (wasSent(user.id, 'evening_review', slot)) continue;
+
+      const todayPlan = await planService.getTodayPlan(user.id, user.timezone);
+      if (
+        !todayPlan ||
+        todayPlan.status === planService.PLAN_STATUSES.DRAFT ||
+        todayPlan.status === planService.PLAN_STATUSES.REVIEWED ||
+        todayPlan.tasks.length === 0
+      ) {
+        markSent(user.id, 'evening_review', slot);
+        continue;
+      }
+
+      const message =
+        user.language === 'ru'
+          ? '🌙 Время подвести итоги дня. Отметь статус задач.'
+          : '🌙 Time for evening review. Mark statuses for today\'s tasks.';
+
+      await sendMessage(
+        user.telegramId,
+        message,
+        new InlineKeyboard()
+          .text(
+            user.language === 'ru' ? '✅ Начать подбивку' : '✅ Start review',
+            'review:start:today'
+          )
+          .row()
+          .text(
+            user.language === 'ru' ? '🗓 Запланировать завтра' : '🗓 Plan tomorrow',
+            'plan:start:tomorrow'
+          )
+      );
+
+      markSent(user.id, 'evening_review', slot);
+    } catch (error) {
+      console.error(`Evening reminder failed for user ${user.id}:`, error);
+    }
   }
 }
 
@@ -163,22 +279,41 @@ async function processProgressReminders(): Promise<void> {
 export function startScheduler(): void {
   console.log('Starting scheduler...');
 
-  // Run checks every 5 minutes
-  // Cron: "*/5 * * * *" = every 5 minutes
-  // This allows notifications to be sent at any HH:mm time configured by users
+  // Every 5 minutes to support arbitrary HH:mm settings.
   cron.schedule('*/5 * * * *', async () => {
-    console.log(`[${new Date().toISOString()}] Running notification checks...`);
-    await Promise.all([processDigests(), processProgressReminders()]);
+    console.log(`[${new Date().toISOString()}] Running planning notifications...`);
+    const results = await Promise.allSettled([
+      processMorningPlanPrompts(),
+      processDailyTaskReminders(),
+      processEveningReviewPrompts(),
+    ]);
+
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        console.error('Scheduler job failed:', result.reason);
+      }
+    }
   });
 
-  console.log('Scheduler started. Jobs will run every 5 minutes.');
+  console.log('Scheduler started. Jobs run every 5 minutes.');
 }
 
 /**
- * Manually trigger notifications processing (for testing).
+ * Manual check for debugging/testing.
  */
 export async function runManualCheck(): Promise<void> {
-  console.log('Running manual notification check...');
-  await Promise.all([processDigests(), processProgressReminders()]);
+  console.log('Running manual planning notification check...');
+  const results = await Promise.allSettled([
+    processMorningPlanPrompts(),
+    processDailyTaskReminders(),
+    processEveningReviewPrompts(),
+  ]);
+
+  for (const result of results) {
+    if (result.status === 'rejected') {
+      console.error('Manual scheduler check failed:', result.reason);
+    }
+  }
+
   console.log('Manual check complete.');
 }

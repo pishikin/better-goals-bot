@@ -279,6 +279,7 @@ DEFAULT_TIMEZONE=UTC
 - `.claude/project_vision.md` - Product philosophy and roadmap
 - `.claude/technical_spec.md` - Formal requirements (FR/NFR)
 - `.claude/development_checklist.md` - Step-by-step implementation guide
+- `.claude/NEW_MODEL_IMPLEMENTATION_PLAN.md` - New daily-plan model migration status, rollout sequence, and rollback notes
 
 ## Quick Reference: What Changed from Original Docs
 

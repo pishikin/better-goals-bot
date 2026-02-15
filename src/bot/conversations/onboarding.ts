@@ -1,7 +1,6 @@
 import type { BotContext, BotConversation, Language } from '../../types/index.js';
 import * as userService from '../../services/user.service.js';
 import * as areasService from '../../services/areas.service.js';
-import { getUserStatistics, getLastProgressDate } from '../../services/statistics.service.js';
 import {
   validateAreaTitle,
   validateAreaBody,
@@ -10,8 +9,7 @@ import {
   validateTime,
   VALIDATION_LIMITS,
 } from '../utils/validators.js';
-import { formatPinnedMessage } from '../utils/message-formatter.js';
-import { createMainMenuKeyboard } from '../keyboards/main-menu.keyboard.js';
+import { syncPinnedPlanMessage } from '../utils/pinned-plan.js';
 import { createAddMoreAreasKeyboard } from '../keyboards/areas.keyboard.js';
 import { createTimezoneKeyboard, createTimeSelectionKeyboard } from '../keyboards/settings.keyboard.js';
 import { InlineKeyboard } from 'grammy';
@@ -247,25 +245,14 @@ export async function onboardingConversation(
   // Step 6: Complete onboarding
   await conversation.external(() => userService.completeOnboarding(user.id));
 
-  // Step 7: Create and pin the summary message
-  const areas = await conversation.external(() => areasService.getUserAreas(user.id));
-  const stats = await conversation.external(() => getUserStatistics(user.id, timezone));
-  const lastProgress = await conversation.external(() => getLastProgressDate(user.id));
-
-  const pinnedMessage = formatPinnedMessage(areas, stats, lastProgress, timezone, language);
-  const sentMessage = await ctx.reply(pinnedMessage, {
-    reply_markup: createMainMenuKeyboard(t),
+  // Step 7: Create or refresh pinned message with current daily plan snapshot
+  await syncPinnedPlanMessage(ctx, {
+    userId: user.id,
+    timezone,
+    language,
+    pinnedMessageId: user.pinnedMessageId,
+    external: (fn) => conversation.external(fn),
   });
-
-  // Try to pin the message
-  try {
-    await ctx.pinChatMessage(sentMessage.message_id, { disable_notification: true });
-    await conversation.external(() =>
-      userService.updatePinnedMessageId(user.id, BigInt(sentMessage.message_id))
-    );
-  } catch {
-    // Pinning might fail if bot doesn't have permission, that's okay
-  }
 
   // Final message
   await ctx.reply(t('onboarding-complete'), { parse_mode: 'Markdown' });

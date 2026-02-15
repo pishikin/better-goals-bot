@@ -17,6 +17,8 @@ export function createSettingsMenuKeyboard(t?: TranslateFn): InlineKeyboard {
     .row()
     .text(translate('btn-timezone'), 'settings:timezone')
     .row()
+    .text(translate('btn-morning-plan-time'), 'settings:morning_plan')
+    .row()
     .text(translate('btn-digest-reminders'), 'settings:digest')
     .row()
     .text(translate('btn-progress-reminder'), 'settings:progress_reminder')

@@ -5,37 +5,77 @@ import type { User } from '@prisma/client';
  * User service handles all user-related database operations.
  */
 
-// Maximum number of digest reminder times
-const MAX_DIGEST_TIMES = 3;
+const MAX_REMINDER_TIMES = 3;
+const DEFAULT_DAILY_REMINDERS = ['14:00'];
 
 /**
- * Parse digestTimes JSON string to array.
+ * Parse JSON array string of times (HH:mm) into string[].
  */
-export function parseDigestTimes(digestTimes: string | null): string[] {
-  if (!digestTimes) return [];
+function parseTimeList(raw: string | null): string[] {
+  if (!raw) return [];
+
   try {
-    const parsed = JSON.parse(digestTimes) as unknown;
-    if (Array.isArray(parsed)) {
-      return parsed.filter((t): t is string => typeof t === 'string');
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
     }
-    return [];
+
+    return parsed.filter((item): item is string => typeof item === 'string');
   } catch {
     return [];
   }
 }
 
 /**
- * Serialize digest times array to JSON string.
+ * Serialize times list into JSON string with max-limit guard.
  */
-function serializeDigestTimes(times: string[]): string | null {
-  if (times.length === 0) return null;
-  return JSON.stringify(times.slice(0, MAX_DIGEST_TIMES));
+function serializeTimeList(times: string[]): string | null {
+  if (times.length === 0) {
+    return null;
+  }
+
+  return JSON.stringify(times.slice(0, MAX_REMINDER_TIMES));
+}
+
+/**
+ * Parse legacy digest times.
+ */
+export function parseDigestTimes(digestTimes: string | null): string[] {
+  return parseTimeList(digestTimes);
+}
+
+/**
+ * Parse new daily reminder times.
+ */
+export function parseDailyReminderTimes(
+  dailyRemindersTimes: string | null
+): string[] {
+  return parseTimeList(dailyRemindersTimes);
+}
+
+/**
+ * Return user's reminder times with fallback:
+ * new field -> legacy digest field -> default.
+ */
+export function getUserDailyReminderTimes(user: User): string[] {
+  const primary = parseDailyReminderTimes(user.dailyRemindersTimes);
+  if (primary.length > 0) return primary;
+
+  const legacy = parseDigestTimes(user.digestTimes);
+  if (legacy.length > 0) return legacy;
+
+  return [...DEFAULT_DAILY_REMINDERS];
+}
+
+/**
+ * Legacy alias for existing code.
+ */
+export function getUserDigestTimes(user: User): string[] {
+  return getUserDailyReminderTimes(user);
 }
 
 /**
  * Get or create a user by their Telegram ID.
- * This is the primary method for user lookup, automatically creating
- * a new user record if one doesn't exist.
  */
 export async function getOrCreateUser(telegramId: bigint): Promise<User> {
   const existingUser = await prisma.user.findUnique({
@@ -72,12 +112,12 @@ export async function getUserByTelegramId(
 }
 
 /**
- * Alias for getUserByTelegramId (for consistency with other services)
+ * Alias for consistency with other services.
  */
 export const findByTelegramId = getUserByTelegramId;
 
 /**
- * Mark user's onboarding as completed.
+ * Mark onboarding as complete.
  */
 export async function completeOnboarding(userId: string): Promise<User> {
   return prisma.user.update({
@@ -87,7 +127,19 @@ export async function completeOnboarding(userId: string): Promise<User> {
 }
 
 /**
- * Update user's language.
+ * Mark new-model onboarding message as shown.
+ */
+export async function markNewModelOnboardingShown(
+  userId: string
+): Promise<User> {
+  return prisma.user.update({
+    where: { id: userId },
+    data: { newModelOnboardingShownAt: new Date() },
+  });
+}
+
+/**
+ * Update language.
  */
 export async function updateLanguage(
   userId: string,
@@ -100,7 +152,7 @@ export async function updateLanguage(
 }
 
 /**
- * Update user's timezone.
+ * Update timezone.
  */
 export async function updateTimezone(
   userId: string,
@@ -113,14 +165,67 @@ export async function updateTimezone(
 }
 
 /**
- * Get user's digest times as array.
+ * Update morning plan reminder time.
  */
-export function getUserDigestTimes(user: User): string[] {
-  return parseDigestTimes(user.digestTimes);
+export async function updateMorningPlanTime(
+  userId: string,
+  time: string | null
+): Promise<User> {
+  return prisma.user.update({
+    where: { id: userId },
+    data: { morningPlanTime: time },
+  });
 }
 
 /**
- * Add a digest time for a user.
+ * Update evening review time.
+ * Also syncs legacy progressReminderTime for backward compatibility.
+ */
+export async function updateEveningReviewTime(
+  userId: string,
+  time: string | null
+): Promise<User> {
+  return prisma.user.update({
+    where: { id: userId },
+    data: {
+      eveningReviewTime: time,
+      progressReminderTime: time,
+    },
+  });
+}
+
+/**
+ * Legacy alias: keep old API but sync with new evening field.
+ */
+export async function updateProgressReminderTime(
+  userId: string,
+  time: string | null
+): Promise<User> {
+  return updateEveningReviewTime(userId, time);
+}
+
+/**
+ * Set daily reminder times.
+ * Updates both new and legacy digest fields during transition.
+ */
+export async function setDailyReminderTimes(
+  userId: string,
+  times: string[]
+): Promise<User> {
+  const normalized = Array.from(new Set(times)).sort().slice(0, MAX_REMINDER_TIMES);
+
+  return prisma.user.update({
+    where: { id: userId },
+    data: {
+      dailyRemindersTimes: serializeTimeList(normalized),
+      dailyRemindersCount: Math.max(1, normalized.length || 1),
+      digestTimes: serializeTimeList(normalized),
+    },
+  });
+}
+
+/**
+ * Add a daily reminder time.
  * Returns false if max limit reached.
  */
 export async function addDigestTime(
@@ -132,28 +237,23 @@ export async function addDigestTime(
     throw new Error('User not found');
   }
 
-  const currentTimes = parseDigestTimes(user.digestTimes);
+  const currentTimes = getUserDailyReminderTimes(user);
 
-  if (currentTimes.length >= MAX_DIGEST_TIMES) {
+  if (currentTimes.length >= MAX_REMINDER_TIMES) {
     return { success: false, user };
   }
 
-  // Avoid duplicates
   if (currentTimes.includes(time)) {
     return { success: true, user };
   }
 
   const newTimes = [...currentTimes, time].sort();
-  const updatedUser = await prisma.user.update({
-    where: { id: userId },
-    data: { digestTimes: serializeDigestTimes(newTimes) },
-  });
-
+  const updatedUser = await setDailyReminderTimes(userId, newTimes);
   return { success: true, user: updatedUser };
 }
 
 /**
- * Remove a digest time for a user.
+ * Remove one reminder time.
  */
 export async function removeDigestTime(
   userId: string,
@@ -164,55 +264,36 @@ export async function removeDigestTime(
     throw new Error('User not found');
   }
 
-  const currentTimes = parseDigestTimes(user.digestTimes);
-  const newTimes = currentTimes.filter((t) => t !== time);
+  const currentTimes = getUserDailyReminderTimes(user);
+  const newTimes = currentTimes.filter((value) => value !== time);
 
-  return prisma.user.update({
-    where: { id: userId },
-    data: { digestTimes: serializeDigestTimes(newTimes) },
-  });
+  if (newTimes.length === 0) {
+    // Keep at least one reminder in new model defaults
+    return setDailyReminderTimes(userId, DEFAULT_DAILY_REMINDERS);
+  }
+
+  return setDailyReminderTimes(userId, newTimes);
 }
 
 /**
- * Set all digest times at once (replaces existing).
+ * Legacy alias.
  */
 export async function setDigestTimes(
   userId: string,
   times: string[]
 ): Promise<User> {
-  return prisma.user.update({
-    where: { id: userId },
-    data: { digestTimes: serializeDigestTimes(times) },
-  });
+  return setDailyReminderTimes(userId, times);
 }
 
 /**
- * Clear all digest times.
+ * Clear reminder times (resets to default one reminder).
  */
 export async function clearDigestTimes(userId: string): Promise<User> {
-  return prisma.user.update({
-    where: { id: userId },
-    data: { digestTimes: null },
-  });
+  return setDailyReminderTimes(userId, DEFAULT_DAILY_REMINDERS);
 }
 
 /**
- * Update user's progress reminder time.
- * Set to null to disable.
- */
-export async function updateProgressReminderTime(
-  userId: string,
-  time: string | null
-): Promise<User> {
-  return prisma.user.update({
-    where: { id: userId },
-    data: { progressReminderTime: time },
-  });
-}
-
-/**
- * Update user's pinned message ID.
- * This is used to track the pinned summary message in the chat.
+ * Update pinned message ID.
  */
 export async function updatePinnedMessageId(
   userId: string,
@@ -225,26 +306,37 @@ export async function updatePinnedMessageId(
 }
 
 /**
- * Full reset - delete all user data and reset settings.
- * This is a destructive operation!
+ * Full reset - destructive operation.
  */
 export async function fullReset(userId: string): Promise<User> {
-  // Delete all areas (progress entries cascade automatically)
+  // Keep language/timezone, wipe user-generated content.
+  await prisma.task.deleteMany({
+    where: { userId },
+  });
+
+  await prisma.dailyPlan.deleteMany({
+    where: { userId },
+  });
+
   await prisma.area.deleteMany({
     where: { userId },
   });
 
-  // Delete any orphaned progress entries (check-ins)
   await prisma.progressEntry.deleteMany({
     where: { userId },
   });
 
-  // Reset user settings (keep language)
   return prisma.user.update({
     where: { id: userId },
     data: {
-      digestTimes: null,
-      progressReminderTime: null,
+      digestTimes: serializeTimeList(DEFAULT_DAILY_REMINDERS),
+      progressReminderTime: '21:00',
+      morningPlanTime: '09:00',
+      eveningReviewTime: '21:00',
+      dailyRemindersCount: 1,
+      dailyRemindersTimes: serializeTimeList(DEFAULT_DAILY_REMINDERS),
+      taskAreaLinkingEnabled: false,
+      newModelOnboardingShownAt: null,
       pinnedMessageId: null,
       onboardingCompleted: false,
     },
@@ -252,50 +344,63 @@ export async function fullReset(userId: string): Promise<User> {
 }
 
 /**
- * Get all users who should receive digest at the current time.
- * Checks each user's digestTimes array.
+ * Get all onboarded users.
  */
-export async function getUsersForDigest(): Promise<User[]> {
-  // Get all users with digest times configured
-  const users = await prisma.user.findMany({
+export async function getOnboardedUsers(): Promise<User[]> {
+  return prisma.user.findMany({
     where: {
-      digestTimes: { not: null },
       onboardingCompleted: true,
     },
   });
-
-  return users;
 }
 
 /**
- * Get all users who should receive progress reminder at the current time.
+ * Legacy API: users with digest settings.
+ */
+export async function getUsersForDigest(): Promise<User[]> {
+  return prisma.user.findMany({
+    where: {
+      onboardingCompleted: true,
+    },
+  });
+}
+
+/**
+ * Legacy API: users with progress reminder.
  */
 export async function getUsersForProgressReminder(): Promise<User[]> {
   return prisma.user.findMany({
     where: {
-      progressReminderTime: { not: null },
       onboardingCompleted: true,
     },
   });
 }
 
-// Default export for convenience
 export const userService = {
   getOrCreateUser,
   getUserById,
   getUserByTelegramId,
   findByTelegramId,
   completeOnboarding,
+  markNewModelOnboardingShown,
   updateLanguage,
   updateTimezone,
+  updateMorningPlanTime,
+  updateEveningReviewTime,
+  updateProgressReminderTime,
+  parseDigestTimes,
+  parseDailyReminderTimes,
   getUserDigestTimes,
+  getUserDailyReminderTimes,
   addDigestTime,
   removeDigestTime,
   setDigestTimes,
+  setDailyReminderTimes,
   clearDigestTimes,
-  updateProgressReminderTime,
   updatePinnedMessageId,
   fullReset,
+  getOnboardedUsers,
   getUsersForDigest,
   getUsersForProgressReminder,
 };
+

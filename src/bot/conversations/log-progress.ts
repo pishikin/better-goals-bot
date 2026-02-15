@@ -1,12 +1,10 @@
 import type { BotContext, BotConversation, Language } from '../../types/index.js';
 import type { Area } from '@prisma/client';
 import * as userService from '../../services/user.service.js';
-import * as areasService from '../../services/areas.service.js';
 import * as progressService from '../../services/progress.service.js';
-import { getUserStatistics, getLastProgressDate } from '../../services/statistics.service.js';
+import { getUserStatistics } from '../../services/statistics.service.js';
 import { validateProgressContent } from '../utils/validators.js';
-import { formatPinnedMessage } from '../utils/message-formatter.js';
-import { createMainMenuKeyboard } from '../keyboards/main-menu.keyboard.js';
+import { syncPinnedPlanMessage } from '../utils/pinned-plan.js';
 import { createProgressControlKeyboard, createAllLoggedKeyboard } from '../keyboards/progress.keyboard.js';
 import { formatDate } from '../utils/date-formatter.js';
 import { i18n } from '../../locales/index.js';
@@ -156,7 +154,7 @@ export async function logProgressConversation(
   await ctx.reply(summaryText + streakText, { parse_mode: 'Markdown' });
 
   // Update pinned message
-  await updatePinnedMessage(conversation, ctx, user.id, user.timezone, user.pinnedMessageId, language, t);
+  await updatePinnedMessage(conversation, ctx, user.id, user.timezone, user.pinnedMessageId, language);
 }
 
 /**
@@ -168,25 +166,13 @@ async function updatePinnedMessage(
   userId: string,
   timezone: string,
   pinnedMessageId: bigint | null,
-  language: string,
-  t: TranslateFn
+  language: string
 ): Promise<void> {
-  const areas = await conversation.external(() => areasService.getUserAreas(userId));
-  const stats = await conversation.external(() => getUserStatistics(userId, timezone));
-  const lastProgress = await conversation.external(() => getLastProgressDate(userId));
-
-  const messageText = formatPinnedMessage(areas, stats, lastProgress, timezone, language);
-
-  if (pinnedMessageId) {
-    try {
-      await ctx.api.editMessageText(
-        ctx.chat?.id ?? 0,
-        Number(pinnedMessageId),
-        messageText,
-        { reply_markup: createMainMenuKeyboard(t) }
-      );
-    } catch {
-      // Edit might fail if message hasn't changed, that's okay
-    }
-  }
+  await syncPinnedPlanMessage(ctx, {
+    userId,
+    timezone,
+    language,
+    pinnedMessageId,
+    external: (fn) => conversation.external(fn),
+  });
 }

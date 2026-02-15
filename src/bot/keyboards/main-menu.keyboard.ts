@@ -9,16 +9,13 @@ type TranslateFn = (key: string) => string;
 
 /**
  * Create the main menu keyboard for the pinned message.
- * Shows primary actions: Log Progress, Add Area, Edit, Settings
+ * Shows primary actions for the new planning flow.
  */
 export function createMainMenuKeyboard(t?: TranslateFn): InlineKeyboard {
   const translate = t || ((key: string) => key);
 
   return new InlineKeyboard()
     .text(translate('btn-log-progress'), 'action:progress')
-    .text(translate('btn-add-area'), 'action:add_area')
-    .row()
-    .text(translate('btn-edit'), 'action:edit_areas')
     .text(translate('btn-settings'), 'action:settings');
 }
 

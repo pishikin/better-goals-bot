@@ -1,17 +1,26 @@
 import prisma from '../db/client.js';
-import { startOfDay, subDays, format, eachDayOfInterval } from 'date-fns';
-import { toZonedTime } from 'date-fns-tz';
+import { eachDayOfInterval } from 'date-fns';
 import type { UserStatistics } from '../types/index.js';
+import {
+  PLAN_STATUSES,
+  getLocalDayKey,
+  getTodayInTimezone,
+  shiftDateInTimezone,
+} from './daily-plan.service.js';
 
 /**
- * Statistics service calculates user progress metrics.
- * Streak now includes both regular progress and check-in entries.
+ * Statistics service calculates user metrics.
+ * New model streak uses reviewed daily plans.
+ * If no reviewed plans exist yet, we fallback to legacy progress_entries activity.
  */
 
 /**
- * Get all unique dates with at least one entry (progress or check-in).
+ * Legacy activity day keys from progress entries.
  */
-async function getActivityDates(userId: string): Promise<Date[]> {
+async function getLegacyActivityDayKeys(
+  userId: string,
+  timezone: string
+): Promise<string[]> {
   const entries = await prisma.progressEntry.findMany({
     where: { userId },
     select: { date: true },
@@ -19,79 +28,108 @@ async function getActivityDates(userId: string): Promise<Date[]> {
     orderBy: { date: 'desc' },
   });
 
-  return entries.map((e) => startOfDay(e.date));
+  return entries.map((e) => getLocalDayKey(e.date, timezone));
 }
 
 /**
- * Calculate the current streak (consecutive days with activity).
- * Activity = any progress entry OR check-in entry.
- * A streak is broken if a day is missed.
- * Today counts if there's activity, otherwise check from yesterday.
+ * New-model active day keys from reviewed daily plans.
  */
-export async function calculateStreak(
+async function getReviewedPlanDayKeys(
   userId: string,
   timezone: string
-): Promise<number> {
-  const now = new Date();
-  const zonedNow = toZonedTime(now, timezone);
-  const today = startOfDay(zonedNow);
+): Promise<string[]> {
+  const plans = await prisma.dailyPlan.findMany({
+    where: {
+      userId,
+      status: PLAN_STATUSES.REVIEWED,
+    },
+    select: { date: true },
+    distinct: ['date'],
+    orderBy: { date: 'desc' },
+  });
 
-  const activityDates = await getActivityDates(userId);
+  return plans.map((plan) => getLocalDayKey(plan.date, timezone));
+}
 
-  if (activityDates.length === 0) {
+function toDateSet(dayKeys: string[]): Set<string> {
+  return new Set(dayKeys);
+}
+
+function calculateStreakFromDateSet(
+  today: Date,
+  timezone: string,
+  dateSet: Set<string>
+): number {
+  if (dateSet.size === 0) {
     return 0;
   }
-
-  // Create a set of date strings for quick lookup
-  const dateStrings = new Set(
-    activityDates.map((d) => format(d, 'yyyy-MM-dd'))
-  );
 
   let streak = 0;
   let currentDate = today;
 
-  // Check if today has activity, if not start from yesterday
-  const todayString = format(today, 'yyyy-MM-dd');
-  if (!dateStrings.has(todayString)) {
-    currentDate = subDays(today, 1);
+  // If today has no activity, start from yesterday.
+  if (!dateSet.has(getLocalDayKey(today, timezone))) {
+    currentDate = shiftDateInTimezone(today, timezone, -1);
   }
 
-  // Count consecutive days backwards
-  while (true) {
-    const dateString = format(currentDate, 'yyyy-MM-dd');
-    if (dateStrings.has(dateString)) {
-      streak++;
-      currentDate = subDays(currentDate, 1);
-    } else {
-      break;
-    }
+  while (dateSet.has(getLocalDayKey(currentDate, timezone))) {
+    streak += 1;
+    currentDate = shiftDateInTimezone(currentDate, timezone, -1);
   }
 
   return streak;
 }
 
 /**
- * Calculate weekly activity (days with activity in last 7 days).
+ * Calculate current streak:
+ * 1) reviewed plans streak if any exists;
+ * 2) otherwise legacy progress streak.
+ */
+export async function calculateStreak(
+  userId: string,
+  timezone: string
+): Promise<number> {
+  const today = getTodayInTimezone(timezone);
+
+  const reviewedPlanDayKeys = await getReviewedPlanDayKeys(userId, timezone);
+  if (reviewedPlanDayKeys.length > 0) {
+    return calculateStreakFromDateSet(
+      today,
+      timezone,
+      toDateSet(reviewedPlanDayKeys)
+    );
+  }
+
+  const legacyActivityDayKeys = await getLegacyActivityDayKeys(userId, timezone);
+  return calculateStreakFromDateSet(
+    today,
+    timezone,
+    toDateSet(legacyActivityDayKeys)
+  );
+}
+
+/**
+ * Calculate weekly activity (days with streak-activity in last 7 days).
+ * Uses new reviewed plans if available; otherwise legacy progress dates.
  */
 export async function calculateWeeklyActivity(
   userId: string,
   timezone: string
 ): Promise<number> {
-  const now = new Date();
-  const zonedNow = toZonedTime(now, timezone);
-  const today = startOfDay(zonedNow);
-  const weekAgo = subDays(today, 6); // Last 7 days including today
+  const today = getTodayInTimezone(timezone);
+  const weekAgo = shiftDateInTimezone(today, timezone, -6); // Last 7 days including today
 
-  const activityDates = await getActivityDates(userId);
-  const dateStrings = new Set(
-    activityDates.map((d) => format(d, 'yyyy-MM-dd'))
-  );
+  const reviewedPlanDayKeys = await getReviewedPlanDayKeys(userId, timezone);
+  const sourceDayKeys =
+    reviewedPlanDayKeys.length > 0
+      ? reviewedPlanDayKeys
+      : await getLegacyActivityDayKeys(userId, timezone);
 
-  // Count days in the last 7 days that have activity
+  const dateStrings = toDateSet(sourceDayKeys);
   const daysInRange = eachDayOfInterval({ start: weekAgo, end: today });
 
   return daysInRange.filter((day) =>
-    dateStrings.has(format(day, 'yyyy-MM-dd'))
+    dateStrings.has(getLocalDayKey(day, timezone))
   ).length;
 }
 
@@ -129,45 +167,57 @@ export async function getUserStatistics(
 }
 
 /**
- * Get the date of the last activity (progress or check-in).
+ * Get the date of the last activity.
+ * Prefers reviewed plan date when present; otherwise legacy progress date.
  */
 export async function getLastProgressDate(
   userId: string
 ): Promise<Date | null> {
+  const lastReviewedPlan = await prisma.dailyPlan.findFirst({
+    where: {
+      userId,
+      status: PLAN_STATUSES.REVIEWED,
+    },
+    orderBy: { date: 'desc' },
+    select: { date: true },
+  });
+
   const lastEntry = await prisma.progressEntry.findFirst({
     where: { userId },
     orderBy: { date: 'desc' },
     select: { date: true },
   });
 
-  return lastEntry?.date ?? null;
+  if (lastReviewedPlan?.date && lastEntry?.date) {
+    return lastReviewedPlan.date > lastEntry.date
+      ? lastReviewedPlan.date
+      : lastEntry.date;
+  }
+
+  return lastReviewedPlan?.date ?? lastEntry?.date ?? null;
 }
 
 /**
  * Get progress stats for a specific date range.
+ * Legacy helper; keeps old behavior for progress entries.
  */
 export async function getDateRangeStats(
   userId: string,
   startDate: Date,
   endDate: Date
 ): Promise<{ daysWithProgress: number; totalEntries: number }> {
-  const start = startOfDay(startDate);
-  const end = startOfDay(endDate);
-
   const entries = await prisma.progressEntry.findMany({
     where: {
       userId,
       date: {
-        gte: start,
-        lte: end,
+        gte: startDate,
+        lte: endDate,
       },
     },
     select: { date: true },
   });
 
-  const uniqueDates = new Set(
-    entries.map((e) => format(e.date, 'yyyy-MM-dd'))
-  );
+  const uniqueDates = new Set(entries.map((e) => e.date.toISOString().slice(0, 10)));
 
   return {
     daysWithProgress: uniqueDates.size,

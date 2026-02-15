@@ -17,23 +17,30 @@ type TranslateFn = (key: string, params?: Record<string, any>) => string;
  * Format settings menu using i18n.
  */
 function formatSettingsMenuLocalized(
-  user: { timezone: string; progressReminderTime: string | null; language: string },
-  digestTimes: string[],
+  user: {
+    timezone: string;
+    language: string;
+    morningPlanTime: string | null;
+    eveningReviewTime: string | null;
+    dailyRemindersCount: number;
+  },
+  reminderTimes: string[],
   t: TranslateFn
 ): string {
   const lines: string[] = [t('settings-title'), ''];
 
   lines.push(`🌍 *${t('settings-language')}:* ${user.language === 'ru' ? 'Русский' : 'English'}`);
   lines.push(`🌐 *${t('settings-timezone')}:* ${user.timezone}`);
+  lines.push(`🌅 *${t('settings-morning-plan-time')}:* ${user.morningPlanTime ?? 'none'}`);
 
-  if (digestTimes.length > 0) {
-    lines.push(`📋 *${t('settings-digest')}:* ${digestTimes.join(', ')}`);
+  if (reminderTimes.length > 0) {
+    lines.push(`📋 *${t('settings-digest')}:* ${reminderTimes.join(', ')} (${user.dailyRemindersCount})`);
   } else {
     lines.push(`📋 *${t('settings-digest')}:* ${t('digest-current', { times: 'none' })}`);
   }
 
-  if (user.progressReminderTime) {
-    lines.push(`📝 *${t('settings-reminder')}:* ${user.progressReminderTime}`);
+  if (user.eveningReviewTime) {
+    lines.push(`📝 *${t('settings-reminder')}:* ${user.eveningReviewTime}`);
   } else {
     lines.push(`📝 *${t('settings-reminder')}:* ${t('reminder-current', { time: 'none' })}`);
   }
@@ -54,7 +61,7 @@ export async function handleSettingsCommand(ctx: BotContext): Promise<void> {
     return;
   }
 
-  const digestTimes = userService.getUserDigestTimes(user);
+  const digestTimes = userService.getUserDailyReminderTimes(user);
 
   await ctx.reply(formatSettingsMenuLocalized(user, digestTimes, t), {
     parse_mode: 'Markdown',
@@ -77,7 +84,7 @@ export async function handleSettingsNavigation(ctx: BotContext): Promise<void> {
   }
 
   await ctx.answerCallbackQuery();
-  const digestTimes = userService.getUserDigestTimes(user);
+  const digestTimes = userService.getUserDailyReminderTimes(user);
 
   switch (data) {
     case 'action:settings':
@@ -109,6 +116,16 @@ export async function handleSettingsNavigation(ctx: BotContext): Promise<void> {
       });
       break;
 
+    case 'settings:morning_plan':
+      await ctx.editMessageText(
+        `${t('morning-plan-title')}\n\n${t('morning-plan-current', { time: user.morningPlanTime ?? 'none' })}`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: createTimeSelectionKeyboard('morning', t),
+        }
+      );
+      break;
+
     case 'settings:digest':
       await ctx.editMessageText(
         `${t('digest-title')}\n\n${t('digest-current', { times: digestTimes.length > 0 ? digestTimes.join(', ') : 'none' })}`,
@@ -121,7 +138,7 @@ export async function handleSettingsNavigation(ctx: BotContext): Promise<void> {
 
     case 'settings:progress_reminder':
       await ctx.editMessageText(
-        `${t('reminder-title')}\n\n${t('reminder-current', { time: user.progressReminderTime ?? 'none' })}`,
+        `${t('reminder-title')}\n\n${t('reminder-current', { time: user.eveningReviewTime ?? 'none' })}`,
         {
           parse_mode: 'Markdown',
           reply_markup: createTimeSelectionKeyboard('evening', t),
@@ -180,7 +197,7 @@ export async function handleTimezoneSelection(ctx: BotContext): Promise<void> {
 
   const updatedUser = await userService.getUserById(user.id);
   if (updatedUser) {
-    const digestTimes = userService.getUserDigestTimes(updatedUser);
+    const digestTimes = userService.getUserDailyReminderTimes(updatedUser);
     await ctx.editMessageText(
       `✅ ${t('timezone-updated', { timezone })}\n\n${formatSettingsMenuLocalized(updatedUser, digestTimes, t)}`,
       {
@@ -226,7 +243,7 @@ export async function handleDigestTimeActions(ctx: BotContext): Promise<void> {
 
     const updatedUser = await userService.getUserById(user.id);
     if (updatedUser) {
-      const digestTimes = userService.getUserDigestTimes(updatedUser);
+      const digestTimes = userService.getUserDailyReminderTimes(updatedUser);
       await ctx.editMessageText(
         `✅ ${t('digest-removed')}\n\n${t('digest-title')}\n${t('digest-current', { times: digestTimes.length > 0 ? digestTimes.join(', ') : 'none' })}`,
         {
@@ -243,11 +260,12 @@ export async function handleDigestTimeActions(ctx: BotContext): Promise<void> {
 
     const updatedUser = await userService.getUserById(user.id);
     if (updatedUser) {
+      const digestTimes = userService.getUserDailyReminderTimes(updatedUser);
       await ctx.editMessageText(
-        `✅ ${t('digest-cleared')}\n\n${t('digest-title')}\n${t('digest-current', { times: 'none' })}`,
+        `✅ ${t('digest-cleared')}\n\n${t('digest-title')}\n${t('digest-current', { times: digestTimes.join(', ') })}`,
         {
           parse_mode: 'Markdown',
-          reply_markup: createDigestTimesKeyboard([], t),
+          reply_markup: createDigestTimesKeyboard(digestTimes, t),
         }
       );
     }
@@ -275,19 +293,22 @@ export async function handleTimeSelection(ctx: BotContext): Promise<void> {
   const time = parts.slice(2).join(':'); // Handle HH:mm format
 
   if (time === 'custom') {
-    const promptKey = type === 'evening' ? 'settings.reminder-prompt' : 'settings.digest-prompt';
+    const promptKey = type === 'evening' ? 'reminder-prompt' : 'digest-prompt';
     await ctx.editMessageText(t(promptKey), { parse_mode: 'Markdown' });
     return;
   }
 
   if (time === 'disable') {
     if (type === 'evening') {
-      await userService.updateProgressReminderTime(user.id, null);
+      await userService.updateEveningReviewTime(user.id, null);
+    }
+    if (type === 'morning') {
+      await userService.updateMorningPlanTime(user.id, null);
     }
 
     const updatedUser = await userService.getUserById(user.id);
     if (updatedUser) {
-      const digestTimes = userService.getUserDigestTimes(updatedUser);
+      const digestTimes = userService.getUserDailyReminderTimes(updatedUser);
       await ctx.editMessageText(
         `✅ ${t('reminder-removed')}\n\n${formatSettingsMenuLocalized(updatedUser, digestTimes, t)}`,
         {
@@ -306,8 +327,25 @@ export async function handleTimeSelection(ctx: BotContext): Promise<void> {
     return;
   }
 
-  // Handle digest time addition
-  if (type === 'digest' || type === 'morning') {
+  if (type === 'morning') {
+    await userService.updateMorningPlanTime(user.id, time);
+
+    const updatedUser = await userService.getUserById(user.id);
+    if (updatedUser) {
+      const digestTimes = userService.getUserDailyReminderTimes(updatedUser);
+      await ctx.editMessageText(
+        `✅ ${t('morning-plan-updated', { time })}\n\n${formatSettingsMenuLocalized(updatedUser, digestTimes, t)}`,
+        {
+          parse_mode: 'Markdown',
+          reply_markup: createSettingsMenuKeyboard(t),
+        }
+      );
+    }
+    return;
+  }
+
+  // Handle daily reminder time addition
+  if (type === 'digest') {
     const result = await userService.addDigestTime(user.id, time);
 
     if (!result.success) {
@@ -315,7 +353,7 @@ export async function handleTimeSelection(ctx: BotContext): Promise<void> {
       return;
     }
 
-    const digestTimes = userService.getUserDigestTimes(result.user);
+    const digestTimes = userService.getUserDailyReminderTimes(result.user);
     await ctx.editMessageText(
       `✅ ${t('digest-added', { time })}\n\n${t('digest-title')}\n${t('digest-current', { times: digestTimes.join(', ') })}`,
       {
@@ -326,13 +364,13 @@ export async function handleTimeSelection(ctx: BotContext): Promise<void> {
     return;
   }
 
-  // Handle progress reminder time
+  // Handle evening review time
   if (type === 'evening') {
-    await userService.updateProgressReminderTime(user.id, time);
+    await userService.updateEveningReviewTime(user.id, time);
 
     const updatedUser = await userService.getUserById(user.id);
     if (updatedUser) {
-      const digestTimes = userService.getUserDigestTimes(updatedUser);
+      const digestTimes = userService.getUserDailyReminderTimes(updatedUser);
       await ctx.editMessageText(
         `✅ ${t('reminder-updated', { time })}\n\n${formatSettingsMenuLocalized(updatedUser, digestTimes, t)}`,
         {
@@ -382,7 +420,7 @@ export async function handleResetConfirmation(ctx: BotContext): Promise<void> {
   }
 
   // Cancel - go back to settings
-  const digestTimes = userService.getUserDigestTimes(user);
+  const digestTimes = userService.getUserDailyReminderTimes(user);
   await ctx.editMessageText(formatSettingsMenuLocalized(user, digestTimes, t), {
     parse_mode: 'Markdown',
     reply_markup: createSettingsMenuKeyboard(t),
@@ -424,7 +462,7 @@ export async function handleLanguageSelection(ctx: BotContext): Promise<void> {
 
   const updatedUser = await userService.getUserById(user.id);
   if (updatedUser) {
-    const digestTimes = userService.getUserDigestTimes(updatedUser);
+    const digestTimes = userService.getUserDailyReminderTimes(updatedUser);
     await ctx.editMessageText(
       `✅ ${t('language-updated', { language: langName })}\n\n${formatSettingsMenuLocalized(updatedUser, digestTimes, t)}`,
       {
